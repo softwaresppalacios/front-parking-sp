@@ -1,0 +1,53 @@
+<section class="panel !overflow-hidden !p-0 shadow-soft">
+  <div class="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/70 px-5 py-4 md:flex-row md:items-center md:justify-between">
+    <div>
+      <small class="font-mono text-[10px] uppercase tracking-[.18em] text-slate-400">Tarifas</small>
+      <h2 class="mt-1 font-heading text-[30px] leading-none">Reglas de cobro por vehiculo</h2>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <a class="ghost inline-flex items-center justify-center px-4" routerLink="../">Volver al menu</a>
+      <span class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-[11px] text-sky-600">{{ store.pricingRules().length }} reglas activas</span>
+    </div>
+  </div>
+  <div class="grid gap-4 p-5 xl:grid-cols-2">
+    <article class="grid gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-panel" *ngFor="let rule of store.pricingRules()">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 class="font-heading text-[26px] leading-none">{{ rule.displayName }}</h3>
+          <small class="mt-2 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-[11px] text-sky-600">{{ vehicleLabel(rule.vehicleType) }}</small>
+        </div>
+        <button (click)="store.saveRule(rule)" [disabled]="store.savingRule() === rule.vehicleType">Guardar tarifa</button>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <label>Nombre visible<input [(ngModel)]="rule.displayName" placeholder="Carro Normal"></label>
+        <label>Modelo de cobro
+          <select [(ngModel)]="rule.pricingModel">
+            <option value="PROGRESSIVE">Primera hora + adicionales</option>
+            <option value="FLAT">Tarifa plana</option>
+          </select>
+        </label>
+        <label>Tarifa plana<input type="number" min="0" [(ngModel)]="rule.flatAmount"></label>
+        <label>Primera hora<input type="number" min="0" [(ngModel)]="rule.hourlyAmount"></label>
+        <label>Hora adicional<input type="number" min="0" [(ngModel)]="rule.additionalHourAmount"></label>
+        <label>Fraccion<input type="number" min="0" [(ngModel)]="rule.fractionAmount"></label>
+        <label>Minutos fraccion<input type="number" min="1" [(ngModel)]="rule.fractionMinutes"></label>
+        <label>Tarifa dia<input type="number" min="0" [(ngModel)]="rule.dayAmount"></label>
+        <label>Subir despues de X horas<input type="number" min="1" [(ngModel)]="rule.rateIncreaseAfterHours"></label>
+        <label>Incremento por hora<input type="number" min="0" [(ngModel)]="rule.rateIncreaseAmount"></label>
+        <label>Perdida de ticket<input type="number" min="0" [(ngModel)]="rule.lostTicketFee"></label>
+        <label>Tope diario
+          <select [(ngModel)]="rule.applyDailyCap">
+            <option [ngValue]="true">Si</option>
+            <option [ngValue]="false">No</option>
+          </select>
+        </label>
+      </div>
+      <p class="m-0 text-sm text-slate-500">
+        <span *ngIf="rule.pricingModel === 'FLAT'">Ejemplo: todo el dia vale {{ money(rule.flatAmount || 0) }}.</span>
+        <span *ngIf="rule.pricingModel === 'PROGRESSIVE'">Ejemplo: {{ money(rule.hourlyAmount || 0) }} la primera hora y {{ money(rule.additionalHourAmount || 0) }} por cada hora adicional.</span>
+      </p>
+    </article>
+  </div>
+</section>
+
+<p class="notice" *ngIf="store.pricingMessage()">{{ store.pricingMessage() }}</p>

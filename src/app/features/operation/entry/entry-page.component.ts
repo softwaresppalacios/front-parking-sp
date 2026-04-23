@@ -31,11 +31,14 @@ export class EntryPageComponent {
   constructor() { this.loadBoard(); }
 
   loadBoard() { this.http.get<ResourceBoard>(`${API.operation}/resources/board`, tenantHeaders(this.tenantId)).subscribe(v => this.board.set(v)); }
-  spaces() { return this.vehicleType === 'MOTORCYCLE' ? this.available(this.board()?.motorcycleSpaces) : this.available(this.board()?.carSpaces); }
+  spaces() { return this.usesCompactSpace() ? (this.board()?.motorcycleSpaces || []) : (this.board()?.carSpaces || []); }
   available(items?: Resource[]) { return (items || []).filter(item => !item.occupied && !item.reserved); }
   onPlateChange(value: string) { this.plate = this.formatPlate(value); }
   resetAssignments() { this.selectedSpace = ''; this.selectedKeySlot = ''; this.selectedHelmetLocker = ''; }
   vehicleLabel() { return vehicleLabel(this.vehicleType); }
+  usesCompactSpace() { return this.vehicleType === 'MOTORCYCLE' || this.vehicleType === 'BICYCLE'; }
+  showsKeySlots() { return this.vehicleType === 'CAR' || this.vehicleType === 'HEAVY'; }
+  showsHelmetLockers() { return this.vehicleType === 'MOTORCYCLE'; }
 
   private formatPlate(value: string) {
     return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
@@ -46,7 +49,6 @@ export class EntryPageComponent {
     if (!this.plate || this.plate.length < 5) { this.error.set('Ingrese una placa valida.'); return; }
     if (!this.phone || this.phone.length < 7) { this.error.set('Ingrese el celular del conductor.'); return; }
     if (!this.selectedSpace) { this.error.set('Seleccione un espacio.'); return; }
-    if (this.vehicleType !== 'MOTORCYCLE' && !this.selectedKeySlot) { this.error.set('Seleccione un slot del tablero de llaves.'); return; }
     this.http.post<Ticket>(`${API.operation}/tickets/check-in`, {
       plate: this.plate,
       vehicleType: this.vehicleType,

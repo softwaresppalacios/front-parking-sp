@@ -1,0 +1,35 @@
+<section class="config-home-hero panel">
+  <small><i class="pi pi-cog"></i> Centro de configuracion</small>
+  <h2>{{ store.branchConfig().name || 'Parqueadero' }}</h2>
+  <p>Selecciona la seccion que quieres administrar. Cada configuracion vive ahora en su propia vista para que el trabajo sea mas claro y rapido.</p>
+</section>
+
+<section class="config-summary-grid">
+  <config-summary-card
+    *ngFor="let card of summaryCards()"
+    [label]="card.label"
+    [value]="card.value"
+    [unit]="card.unit"
+    [icon]="card.icon"
+    [description]="card.description"
+    [badge]="card.badge"
+    [accentBar]="card.accentBar"
+    [surface]="card.surface"
+    [orb]="card.orb"
+    [iconWrap]="card.iconWrap"
+    [unitClass]="card.unitClass"
+    [badgeClass]="card.badgeClass">
+  </config-summary-card>
+</section>
+
+<section class="config-sections-grid">
+  <config-section-card
+    *ngFor="let section of sections()"
+    [title]="section.title"
+    [description]="section.description"
+    [summary]="section.summary"
+    [route]="section.route"
+    [tag]="section.tag"
+    [icon]="section.icon">
+  </config-section-card>
+</section>

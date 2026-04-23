@@ -1,10 +1,14 @@
 <main class="tenant-board">
-  <header>
+  <header class="page-head page-head--stacked">
     <div>
       <span class="eyebrow">TABLERO MULTITENANT</span>
       <h1>Selecciona o crea un parqueadero</h1>
+      <p>Administra múltiples sedes desde un tablero más claro, visual y cómodo para operar.</p>
     </div>
-    <button (click)="logout()">Salir</button>
+    <div class="page-head__meta">
+      <span class="chip red">{{ tenants().length }} parqueaderos</span>
+      <button (click)="logout()">Salir</button>
+    </div>
   </header>
   <section class="create-band">
     <input [(ngModel)]="newTenantName" placeholder="Nombre del parqueadero">

@@ -1,0 +1,38 @@
+<section class="config-summary-grid">
+  <config-summary-card
+    *ngFor="let card of summaryCards()"
+    [label]="card.label"
+    [value]="card.value"
+    [unit]="card.unit"
+    [icon]="card.icon"
+    [description]="card.description"
+    [badge]="card.badge"
+    [accentBar]="card.accentBar"
+    [surface]="card.surface"
+    [orb]="card.orb"
+    [iconWrap]="card.iconWrap"
+    [unitClass]="card.unitClass"
+    [badgeClass]="card.badgeClass">
+  </config-summary-card>
+</section>
+
+<section class="panel !overflow-hidden !p-0 shadow-soft">
+  <div class="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/70 px-5 py-4 md:flex-row md:items-center md:justify-between">
+    <div>
+      <small class="font-mono text-[10px] uppercase tracking-[.18em] text-slate-400">Recursos del parqueadero</small>
+      <h2 class="mt-1 font-heading text-[30px] leading-none">Capacidad instalada</h2>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <a class="ghost inline-flex items-center justify-center px-4" routerLink="../">Volver al menu</a>
+      <button (click)="store.saveResources()" [disabled]="store.savingResources()">Guardar recursos</button>
+    </div>
+  </div>
+  <div class="grid gap-4 p-5 md:grid-cols-2">
+    <label>Capacidad carros<input type="number" min="0" [(ngModel)]="store.branchConfig().carCapacity" (ngModelChange)="store.patchNumber('carCapacity', $event)"></label>
+    <label>Capacidad motos<input type="number" min="0" [(ngModel)]="store.branchConfig().motorcycleCapacity" (ngModelChange)="store.patchNumber('motorcycleCapacity', $event)"></label>
+    <label>Tablero llaves<input type="number" min="0" [(ngModel)]="store.branchConfig().keyRackCapacity" (ngModelChange)="store.patchNumber('keyRackCapacity', $event)"></label>
+    <label>Casilleros cascos<input type="number" min="0" [(ngModel)]="store.branchConfig().helmetLockerCapacity" (ngModelChange)="store.patchNumber('helmetLockerCapacity', $event)"></label>
+  </div>
+</section>
+
+<p class="notice" *ngIf="store.resourcesMessage()">{{ store.resourcesMessage() }}</p>

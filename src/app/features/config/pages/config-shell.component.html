@@ -1,0 +1,21 @@
+<header class="page-head page-head--stacked">
+  <div>
+    <span class="eyebrow">Centro de configuración</span>
+    <h1>Configuración</h1>
+    <p>Administra sedes, recursos, tarifas y disponibilidad desde un espacio más limpio y modular.</p>
+  </div>
+  <div class="page-head__meta">
+    <span class="chip blue" *ngIf="store.branchUuid()">{{ store.branchUuid() }}</span>
+    <a class="config-shell__back" routerLink="/parking/{{ store.tenantId() }}/dashboard">Volver al dashboard</a>
+  </div>
+</header>
+
+<section class="panel" *ngIf="store.loading()">Cargando configuracion del parqueadero...</section>
+
+<section class="panel" *ngIf="!store.loading() && store.branchMessage() && !store.branchConfig().uuid">
+  {{ store.branchMessage() }}
+</section>
+
+<ng-container *ngIf="!store.loading() && store.branchConfig().uuid">
+  <router-outlet></router-outlet>
+</ng-container>

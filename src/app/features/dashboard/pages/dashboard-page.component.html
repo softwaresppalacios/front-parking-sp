@@ -1,11 +1,21 @@
-<header class="page-head"><h1>Dashboard</h1><span>{{ tenantId }}</span></header>
+<header class="page-head page-head--stacked">
+  <div>
+    <span class="eyebrow">Operación en vivo</span>
+    <h1>Dashboard</h1>
+    <p>Resumen del parqueadero para {{ tenantId }} con una lectura rápida del estado, ocupación y facturación.</p>
+  </div>
+  <div class="page-head__meta">
+    <span class="chip red">Tiempo real</span>
+    <span class="chip blue">{{ summary()?.activeTickets || 0 }} tickets activos</span>
+  </div>
+</header>
 <section class="stats">
-  <article><small>Ocupados</small><b>{{ summary()?.occupiedSpaces || 0 }}</b></article>
-  <article><small>Disponibles</small><b>{{ summary()?.availableSpaces || 0 }}</b></article>
-  <article><small>Tickets activos</small><b>{{ summary()?.activeTickets || 0 }}</b></article>
-  <article><small>Facturado hoy</small><b>{{ money(summary()?.todayRevenue || 0) }}</b></article>
+  <article class="stat-card stat-card--red"><small>Ocupados</small><b>{{ summary()?.occupiedSpaces || 0 }}</b><p class="stat-sub">Espacios en uso actualmente</p></article>
+  <article class="stat-card stat-card--green"><small>Disponibles</small><b>{{ summary()?.availableSpaces || 0 }}</b><p class="stat-sub">Capacidad lista para nuevos ingresos</p></article>
+  <article class="stat-card stat-card--blue"><small>Tickets activos</small><b>{{ summary()?.activeTickets || 0 }}</b><p class="stat-sub">Vehículos dentro del parqueadero</p></article>
+  <article class="stat-card stat-card--amber"><small>Facturado hoy</small><b>{{ money(summary()?.todayRevenue || 0) }}</b><p class="stat-sub">Ingresos acumulados del día</p></article>
 </section>
-<section class="panel">
+<section class="panel panel--table">
   <h2>Actividad reciente</h2>
   <table>
     <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Llave/Casco</th><th>Estado</th></tr>

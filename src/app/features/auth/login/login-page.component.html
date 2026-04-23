@@ -1,14 +1,65 @@
 <main class="login-screen">
+  <section class="login-copy">
+    <span class="login-kicker">SP Parqueaderos</span>
+    <h1>Gestiona tu operación con una interfaz más premium</h1>
+    <p>
+      Un panel pensado para verse sólido, moderno y confiable: control de accesos, caja, mensualidades y reportes en una
+      experiencia visual más limpia y sofisticada.
+    </p>
+
+    <div class="login-signals">
+      <article class="login-signal">
+        <strong>+ claridad</strong>
+        <span>Jerarquía visual más fuerte para operar sin fricción.</span>
+      </article>
+      <article class="login-signal">
+        <strong>+ velocidad</strong>
+        <span>Acciones principales visibles, directas y bien agrupadas.</span>
+      </article>
+      <article class="login-signal">
+        <strong>+ presencia</strong>
+        <span>Un estilo contemporáneo que se siente diseñado a medida.</span>
+      </article>
+    </div>
+  </section>
+
   <section class="login-card">
-    <div class="brand-mark">SP</div>
-    <h1>SP Parqueaderos</h1>
-    <p>Gestion SaaS para parqueaderos</p>
-    <label>Email</label>
-    <input [(ngModel)]="email" placeholder="admin@spparqueaderos.com">
-    <label>Contrasena</label>
-    <input [(ngModel)]="password" type="password" placeholder="admin123">
-    <button (click)="login()">Iniciar sesion</button>
-    <button class="ghost" (click)="demo()">Entrar con demo</button>
+    <div class="login-brand-row">
+      <div class="brand-mark brand-mark--image">
+        <img src="assets/logo-evento.png" alt="Logo del evento SP Parqueadero">
+      </div>
+      <div class="brand-copy">
+        <strong>SP Parqueaderos</strong>
+        <span>Gestion SaaS para parqueaderos</span>
+      </div>
+    </div>
+
+    <div class="login-title">
+      <h2>Acceso al panel</h2>
+      <p>Ingresa con tus credenciales para abrir la operación del parqueadero.</p>
+    </div>
+
+    <div class="login-field">
+      <label>Email</label>
+      <input pInputText [(ngModel)]="email" placeholder="admin@spparqueaderos.com">
+    </div>
+
+    <div class="login-field">
+      <label>Contraseña</label>
+      <p-password [(ngModel)]="password" [feedback]="false" [toggleMask]="true" placeholder="admin123"></p-password>
+    </div>
+
+    <div class="login-actions">
+      <button pButton type="button" label="Iniciar sesión" icon="pi pi-sign-in" (click)="login()"></button>
+      <button class="ghost" type="button" (click)="demo()"><i class="pi pi-bolt"></i> Entrar con demo</button>
+    </div>
+
+    <div class="login-helper">
+      <span><i class="pi pi-shield"></i> Sesión protegida</span>
+      <span>Operación en tiempo real</span>
+    </div>
+
     <span class="error" *ngIf="error()">{{ error() }}</span>
+    <p class="login-foot">Diseñado para una experiencia de trabajo más elegante, ordenada y profesional.</p>
   </section>
 </main>

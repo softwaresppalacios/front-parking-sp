@@ -12,18 +12,40 @@
     <label>Celular conductor</label><input [(ngModel)]="phone" name="phone" placeholder="3000000000">
     <label>Asignar espacio</label>
     <div class="picker-grid">
-      <button type="button" class="picker" *ngFor="let item of spaces()" [class.selected]="selectedSpace === item.code" [disabled]="item.occupied || item.reserved" (click)="selectedSpace = item.code">{{ item.code }}</button>
+      <button
+        type="button"
+        class="picker"
+        *ngFor="let item of spaces()"
+        [class.selected]="selectedSpace === item.code"
+        [class.occupied]="item.occupied || item.reserved"
+        [disabled]="item.occupied || item.reserved"
+        (click)="selectedSpace = item.code">{{ item.code }}</button>
     </div>
-    <ng-container *ngIf="vehicleType !== 'MOTORCYCLE'">
+    <ng-container *ngIf="showsKeySlots()">
       <label>Tablero de llaves</label>
       <div class="picker-grid">
-        <button type="button" class="picker" *ngFor="let item of available(board()?.keySlots)" [class.selected]="selectedKeySlot === item.code" (click)="selectedKeySlot = item.code">{{ item.code }}</button>
+        <button
+          type="button"
+          class="picker"
+          *ngFor="let item of board()?.keySlots || []"
+          [class.selected]="selectedKeySlot === item.code"
+          [class.occupied]="item.occupied || item.reserved"
+          [disabled]="item.occupied || item.reserved"
+          (click)="selectedKeySlot = item.code">{{ item.code }}</button>
       </div>
+      <p class="hint">Opcional. Puedes registrar la entrada sin asignar un slot de llave.</p>
     </ng-container>
-    <ng-container *ngIf="vehicleType === 'MOTORCYCLE'">
+    <ng-container *ngIf="showsHelmetLockers()">
       <label>Casillero de casco</label>
       <div class="picker-grid">
-        <button type="button" class="picker" *ngFor="let item of available(board()?.helmetLockers)" [class.selected]="selectedHelmetLocker === item.code" (click)="selectedHelmetLocker = item.code">{{ item.code }}</button>
+        <button
+          type="button"
+          class="picker"
+          *ngFor="let item of board()?.helmetLockers || []"
+          [class.selected]="selectedHelmetLocker === item.code"
+          [class.occupied]="item.occupied || item.reserved"
+          [disabled]="item.occupied || item.reserved"
+          (click)="selectedHelmetLocker = item.code">{{ item.code }}</button>
       </div>
     </ng-container>
     <label>Mensualidad activa</label>
@@ -37,7 +59,7 @@
     <h2>{{ plate || '--- ---' }}</h2>
     <p>{{ vehicleLabel() }}</p>
     <p>Slot: <b>{{ selectedSpace || '-' }}</b></p>
-    <p *ngIf="vehicleType !== 'MOTORCYCLE'">Llave: <b>{{ selectedKeySlot || '-' }}</b></p>
-    <p *ngIf="vehicleType === 'MOTORCYCLE'">Casco: <b>{{ selectedHelmetLocker || 'Sin casillero' }}</b></p>
+    <p *ngIf="showsKeySlots()">Llave: <b>{{ selectedKeySlot || '-' }}</b></p>
+    <p *ngIf="showsHelmetLockers()">Casco: <b>{{ selectedHelmetLocker || 'Sin casillero' }}</b></p>
   </article>
 </section>

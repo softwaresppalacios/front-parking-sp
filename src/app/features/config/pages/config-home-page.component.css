@@ -1,0 +1,52 @@
+:host {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.config-home-hero {
+  display: grid;
+  gap: 0.75rem;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #fff7f7, #ffffff 45%, #fff1f2);
+  box-shadow: 0 16px 42px rgba(220, 38, 38, 0.08);
+}
+
+.config-home-hero small {
+  color: var(--red);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.config-home-hero h2 {
+  margin: 0;
+  font-family: var(--font-head);
+  font-size: 42px;
+  line-height: 1;
+}
+
+.config-home-hero p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.config-summary-grid,
+.config-sections-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .config-summary-grid,
+  .config-sections-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .config-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
