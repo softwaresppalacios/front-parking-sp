@@ -1,0 +1,36 @@
+<header class="page-head"><h1>Mensualidades</h1><button (click)="load()">Actualizar</button></header>
+<section class="stats">
+  <article><small>Vehiculos mensuales activos</small><b>{{ monthlyTickets().length }}</b></article>
+  <article><small>Carros mensuales</small><b>{{ countByType('CAR') }}</b></article>
+  <article><small>Motos mensuales</small><b>{{ countByType('MOTORCYCLE') }}</b></article>
+  <article><small>Otros mensuales</small><b>{{ otherMonthlyCount() }}</b></article>
+</section>
+<section class="panel monthly-layout">
+  <article>
+    <h2>Busqueda rapida</h2>
+    <label>Filtrar por placa</label>
+    <input [(ngModel)]="query" (input)="query = query.toUpperCase()" placeholder="ABC123">
+    <p class="hint">Aqui ves los vehiculos con mensualidad que estan actualmente dentro del parqueadero.</p>
+  </article>
+  <article>
+    <h2>Resumen</h2>
+    <p>Total activos hoy: <b>{{ tickets().length }}</b></p>
+    <p>Mensuales ocupando espacio: <b>{{ monthlyTickets().length }}</b></p>
+    <p>Cobro inmediato evitado en caja: <b>{{ monthlyTickets().length }}</b></p>
+  </article>
+</section>
+<section class="panel">
+  <h2>Vehiculos con mensualidad activa</h2>
+  <table>
+    <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Llave/Casco</th><th>Ingreso</th><th>Estado</th></tr>
+    <tr *ngFor="let t of filteredMonthlyTickets()"><td>{{ t.plate }}</td><td>{{ label(t.vehicleType) }}</td><td>{{ t.spaceCode }}</td><td>{{ t.keySlotCode || t.helmetLockerCode || 'N/A' }}</td><td>{{ t.checkedInAt | date:'short' }}</td><td>MENSUAL</td></tr>
+  </table>
+  <p class="notice" *ngIf="!filteredMonthlyTickets().length">No hay vehiculos mensuales activos con ese filtro.</p>
+</section>
+<section class="panel">
+  <h2>Vehiculos por hora actualmente dentro</h2>
+  <table>
+    <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Ingreso</th></tr>
+    <tr *ngFor="let t of nonMonthlyTickets()"><td>{{ t.plate }}</td><td>{{ label(t.vehicleType) }}</td><td>{{ t.spaceCode }}</td><td>{{ t.checkedInAt | date:'short' }}</td></tr>
+  </table>
+</section>

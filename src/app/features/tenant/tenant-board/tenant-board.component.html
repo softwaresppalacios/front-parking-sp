@@ -1,0 +1,22 @@
+<main class="tenant-board">
+  <header>
+    <div>
+      <span class="eyebrow">TABLERO MULTITENANT</span>
+      <h1>Selecciona o crea un parqueadero</h1>
+    </div>
+    <button (click)="logout()">Salir</button>
+  </header>
+  <section class="create-band">
+    <input [(ngModel)]="newTenantName" placeholder="Nombre del parqueadero">
+    <input [(ngModel)]="newBranchAddress" placeholder="Direccion sede principal">
+    <button (click)="createTenant()">Crear parqueadero</button>
+  </section>
+  <section class="tenant-grid">
+    <article class="tenant-card" *ngFor="let tenant of tenants()" (click)="open(tenant)">
+      <span class="status">{{ tenant.status }}</span>
+      <h2>{{ tenant.name }}</h2>
+      <p>{{ tenant.planName }} · {{ tenant.branches.length }} sedes de {{ tenant.branchLimit }}</p>
+      <code>{{ tenant.uuid }}</code>
+    </article>
+  </section>
+</main>

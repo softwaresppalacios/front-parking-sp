@@ -1,0 +1,14 @@
+<header class="page-head"><h1>Caja del Dia</h1><button (click)="load()">Actualizar</button></header>
+<section class="stats">
+  <article><small>Total recaudado</small><b>{{ money(summary()?.todayRevenue || 0) }}</b></article>
+  <article><small>Efectivo</small><b>{{ money(summary()?.cashRevenue || 0) }}</b></article>
+  <article><small>Digital</small><b>{{ money(summary()?.digitalRevenue || 0) }}</b></article>
+  <article><small>Movimientos</small><b>{{ summary()?.movements || 0 }}</b></article>
+</section>
+<section class="panel">
+  <h2>Movimientos del dia</h2>
+  <table>
+    <tr><th>#</th><th>Ticket</th><th>Hora</th><th>Pago</th><th>Valor</th></tr>
+    <tr *ngFor="let m of summary()?.recentMovements"><td>{{ m.id }}</td><td>{{ m.ticketUuid }}</td><td>{{ m.paidAt | date:'shortTime' }}</td><td>{{ m.method === 'CASH' ? 'Efectivo' : 'Digital' }}</td><td>{{ money(+m.amount) }}</td></tr>
+  </table>
+</section>

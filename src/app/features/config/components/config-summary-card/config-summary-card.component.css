@@ -1,0 +1,129 @@
+:host {
+  display: block;
+}
+
+.metric-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: white;
+  padding: 20px 18px 18px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgb(252 165 165);
+  box-shadow: 0 12px 28px rgba(220, 38, 38, 0.08);
+}
+
+.metric-card__accent {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #dc2626, #ef4444);
+}
+
+.metric-card__icon {
+  display: inline-flex;
+  display: flex;
+  height: 42px;
+  width: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  background: #fef2f2;
+  color: var(--red);
+  margin-bottom: 14px;
+}
+
+.metric-card__icon-text {
+  font-family: var(--font-head);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.metric-card__content {
+  position: relative;
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+}
+
+.metric-card__label {
+  color: var(--text);
+  font-family: var(--font-head);
+  font-size: 28px;
+  line-height: 1;
+  letter-spacing: 0.2px;
+}
+
+.metric-card__description {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.metric-card__value-block {
+  margin-top: 22px;
+  display: grid;
+  gap: 2px;
+}
+
+.metric-card__value {
+  display: block;
+  font-family: var(--font-head);
+  font-size: 78px;
+  line-height: 0.92;
+  color: var(--red);
+  letter-spacing: 0.5px;
+}
+
+.metric-card__unit {
+  display: block;
+  color: var(--red);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+}
+
+.metric-card__footer {
+  margin-top: auto;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 18px;
+}
+
+.metric-card__badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(220, 38, 38, 0.14);
+  border-radius: 9999px;
+  padding: 6px 12px;
+  background: #fef2f2;
+  color: var(--red);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.metric-card__meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(148 163 184);
+}
+
+@media (max-width: 840px) {
+  .metric-card__value {
+    font-size: 64px;
+  }
+}

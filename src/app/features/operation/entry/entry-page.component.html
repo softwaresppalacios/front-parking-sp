@@ -1,0 +1,43 @@
+<header class="page-head"><h1>Registrar Entrada</h1></header>
+<section class="entry-layout">
+  <form class="form-panel">
+    <label>Placa</label><input class="plate-input" [(ngModel)]="plate" name="plate" (ngModelChange)="onPlateChange($event)" placeholder="ABC123" maxlength="10">
+    <label>Tipo</label>
+    <select [(ngModel)]="vehicleType" name="vehicleType" (ngModelChange)="resetAssignments()">
+      <option value="CAR">Carro normal</option>
+      <option value="HEAVY">Carga pesada</option>
+      <option value="MOTORCYCLE">Moto</option>
+      <option value="BICYCLE">Bicicleta</option>
+    </select>
+    <label>Celular conductor</label><input [(ngModel)]="phone" name="phone" placeholder="3000000000">
+    <label>Asignar espacio</label>
+    <div class="picker-grid">
+      <button type="button" class="picker" *ngFor="let item of spaces()" [class.selected]="selectedSpace === item.code" [disabled]="item.occupied || item.reserved" (click)="selectedSpace = item.code">{{ item.code }}</button>
+    </div>
+    <ng-container *ngIf="vehicleType !== 'MOTORCYCLE'">
+      <label>Tablero de llaves</label>
+      <div class="picker-grid">
+        <button type="button" class="picker" *ngFor="let item of available(board()?.keySlots)" [class.selected]="selectedKeySlot === item.code" (click)="selectedKeySlot = item.code">{{ item.code }}</button>
+      </div>
+    </ng-container>
+    <ng-container *ngIf="vehicleType === 'MOTORCYCLE'">
+      <label>Casillero de casco</label>
+      <div class="picker-grid">
+        <button type="button" class="picker" *ngFor="let item of available(board()?.helmetLockers)" [class.selected]="selectedHelmetLocker === item.code" (click)="selectedHelmetLocker = item.code">{{ item.code }}</button>
+      </div>
+    </ng-container>
+    <label>Mensualidad activa</label>
+    <select [(ngModel)]="monthlySubscription" name="monthlySubscription"><option [ngValue]="false">No, cobro por hora</option><option [ngValue]="true">Si, mensualidad activa</option></select>
+    <button type="button" (click)="checkIn()">Registrar entrada y generar ticket</button>
+    <p class="error" *ngIf="error()">{{ error() }}</p>
+    <p class="notice" *ngIf="ticket()">Ticket {{ ticket()?.uuid }} asignado a {{ ticket()?.spaceCode }} {{ ticket()?.keySlotCode || ticket()?.helmetLockerCode || '' }}</p>
+  </form>
+  <article class="ticket-preview">
+    <small>Vista previa del ticket</small>
+    <h2>{{ plate || '--- ---' }}</h2>
+    <p>{{ vehicleLabel() }}</p>
+    <p>Slot: <b>{{ selectedSpace || '-' }}</b></p>
+    <p *ngIf="vehicleType !== 'MOTORCYCLE'">Llave: <b>{{ selectedKeySlot || '-' }}</b></p>
+    <p *ngIf="vehicleType === 'MOTORCYCLE'">Casco: <b>{{ selectedHelmetLocker || 'Sin casillero' }}</b></p>
+  </article>
+</section>

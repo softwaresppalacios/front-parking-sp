@@ -1,0 +1,14 @@
+<main class="login-screen">
+  <section class="login-card">
+    <div class="brand-mark">SP</div>
+    <h1>SP Parqueaderos</h1>
+    <p>Gestion SaaS para parqueaderos</p>
+    <label>Email</label>
+    <input [(ngModel)]="email" placeholder="admin@spparqueaderos.com">
+    <label>Contrasena</label>
+    <input [(ngModel)]="password" type="password" placeholder="admin123">
+    <button (click)="login()">Iniciar sesion</button>
+    <button class="ghost" (click)="demo()">Entrar con demo</button>
+    <span class="error" *ngIf="error()">{{ error() }}</span>
+  </section>
+</main>
