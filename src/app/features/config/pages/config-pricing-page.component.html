@@ -1,53 +1,87 @@
-<section class="panel !overflow-hidden !p-0 shadow-soft">
-  <div class="flex flex-col gap-4 border-b border-slate-200 bg-slate-50/70 px-5 py-4 md:flex-row md:items-center md:justify-between">
+<section class="pricing-page">
+  <header class="pricing-page__header">
     <div>
-      <small class="font-mono text-[10px] uppercase tracking-[.18em] text-slate-400">Tarifas</small>
-      <h2 class="mt-1 font-heading text-[30px] leading-none">Reglas de cobro por vehiculo</h2>
+      <small>Tarifas</small>
+      <h2>Reglas de cobro</h2>
+      <p>Estos valores se usan automaticamente cuando registras la salida de un vehiculo.</p>
     </div>
-    <div class="flex flex-wrap gap-3">
-      <a class="ghost inline-flex items-center justify-center px-4" routerLink="../">Volver al menu</a>
-      <span class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-[11px] text-sky-600">{{ store.pricingRules().length }} reglas activas</span>
-    </div>
-  </div>
-  <div class="grid gap-4 p-5 xl:grid-cols-2">
-    <article class="grid gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-panel" *ngFor="let rule of store.pricingRules()">
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 class="font-heading text-[26px] leading-none">{{ rule.displayName }}</h3>
-          <small class="mt-2 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 font-mono text-[11px] text-sky-600">{{ vehicleLabel(rule.vehicleType) }}</small>
-        </div>
-        <button (click)="store.saveRule(rule)" [disabled]="store.savingRule() === rule.vehicleType">Guardar tarifa</button>
-      </div>
-      <div class="grid gap-4 md:grid-cols-2">
-        <label>Nombre visible<input [(ngModel)]="rule.displayName" placeholder="Carro Normal"></label>
-        <label>Modelo de cobro
-          <select [(ngModel)]="rule.pricingModel">
-            <option value="PROGRESSIVE">Primera hora + adicionales</option>
-            <option value="FLAT">Tarifa plana</option>
-          </select>
-        </label>
-        <label>Tarifa plana<input type="number" min="0" [(ngModel)]="rule.flatAmount"></label>
-        <label>Primera hora<input type="number" min="0" [(ngModel)]="rule.hourlyAmount"></label>
-        <label>Hora adicional<input type="number" min="0" [(ngModel)]="rule.additionalHourAmount"></label>
-        <label>Fraccion<input type="number" min="0" [(ngModel)]="rule.fractionAmount"></label>
-        <label>Minutos fraccion<input type="number" min="1" [(ngModel)]="rule.fractionMinutes"></label>
-        <label>Tarifa dia<input type="number" min="0" [(ngModel)]="rule.dayAmount"></label>
-        <label>Subir despues de X horas<input type="number" min="1" [(ngModel)]="rule.rateIncreaseAfterHours"></label>
-        <label>Incremento por hora<input type="number" min="0" [(ngModel)]="rule.rateIncreaseAmount"></label>
-        <label>Perdida de ticket<input type="number" min="0" [(ngModel)]="rule.lostTicketFee"></label>
-        <label>Tope diario
-          <select [(ngModel)]="rule.applyDailyCap">
-            <option [ngValue]="true">Si</option>
-            <option [ngValue]="false">No</option>
-          </select>
-        </label>
-      </div>
-      <p class="m-0 text-sm text-slate-500">
-        <span *ngIf="rule.pricingModel === 'FLAT'">Ejemplo: todo el dia vale {{ money(rule.flatAmount || 0) }}.</span>
-        <span *ngIf="rule.pricingModel === 'PROGRESSIVE'">Ejemplo: {{ money(rule.hourlyAmount || 0) }} la primera hora y {{ money(rule.additionalHourAmount || 0) }} por cada hora adicional.</span>
-      </p>
-    </article>
-  </div>
-</section>
+    <a class="pricing-page__back" routerLink="../">
+      <i class="pi pi-arrow-left"></i>
+      Volver
+    </a>
+  </header>
 
-<p class="notice" *ngIf="store.pricingMessage()">{{ store.pricingMessage() }}</p>
+  <section class="pricing-page__grid">
+    <article class="pricing-card" *ngFor="let rule of store.pricingRules()">
+      <div class="pricing-card__head">
+        <div class="pricing-card__icon">{{ vehicleLabel(rule.vehicleType).charAt(0) }}</div>
+        <div>
+          <span>{{ vehicleLabel(rule.vehicleType) }}</span>
+          <input class="pricing-card__name" [(ngModel)]="rule.displayName" placeholder="Nombre visible">
+        </div>
+      </div>
+
+      <div class="pricing-mode" role="group" aria-label="Modelo de cobro">
+        <button
+          type="button"
+          class="pricing-mode__option"
+          [class.active]="rule.pricingModel === 'PROGRESSIVE'"
+          (click)="onPricingModelChange(rule, 'PROGRESSIVE')">
+          <i class="pi pi-clock"></i>
+          <span>Por horas</span>
+        </button>
+        <button
+          type="button"
+          class="pricing-mode__option"
+          [class.active]="rule.pricingModel === 'FLAT'"
+          (click)="onPricingModelChange(rule, 'FLAT')">
+          <i class="pi pi-tag"></i>
+          <span>Precio fijo</span>
+        </button>
+      </div>
+
+      <div class="pricing-fields" *ngIf="rule.pricingModel === 'PROGRESSIVE'">
+        <label>
+          <span>Primera hora</span>
+          <div class="currency-input">
+            <span>COP</span>
+            <input type="number" min="0" [(ngModel)]="rule.hourlyAmount">
+          </div>
+        </label>
+        <label>
+          <span>Hora adicional</span>
+          <div class="currency-input">
+            <span>COP</span>
+            <input type="number" min="0" [(ngModel)]="rule.additionalHourAmount">
+          </div>
+        </label>
+      </div>
+
+      <div class="pricing-fields pricing-fields--single" *ngIf="rule.pricingModel === 'FLAT'">
+        <label>
+          <span>Precio fijo de salida</span>
+          <div class="currency-input">
+            <span>COP</span>
+            <input type="number" min="0" [(ngModel)]="rule.flatAmount">
+          </div>
+        </label>
+      </div>
+
+      <div class="pricing-card__summary">
+        <i class="pi pi-info-circle"></i>
+        <span>{{ ruleSummary(rule) }}</span>
+      </div>
+    </article>
+  </section>
+
+  <footer class="pricing-savebar">
+    <div>
+      <strong>{{ store.pricingRules().length }} reglas listas</strong>
+      <span>Guarda todo al final para aplicar los cambios al cobro de salida.</span>
+    </div>
+    <button (click)="store.savePricingRules()" [disabled]="store.savingPricingRules() || !store.pricingRules().length">
+      <i class="pi" [class.pi-save]="!store.savingPricingRules()" [class.pi-spin]="store.savingPricingRules()" [class.pi-spinner]="store.savingPricingRules()"></i>
+      {{ store.savingPricingRules() ? 'Guardando...' : 'Guardar cambios' }}
+    </button>
+  </footer>
+</section>

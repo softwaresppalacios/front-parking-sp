@@ -11,7 +11,12 @@ export function tenantHeaders(tenantId: string) {
 }
 
 export function money(value: number) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    currencyDisplay: 'code',
+    maximumFractionDigits: 0
+  }).format(value);
 }
 
 export function vehicleLabel(type: string) {

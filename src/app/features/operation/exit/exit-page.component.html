@@ -1,7 +1,11 @@
 <header class="page-head"><h1>Registrar Salida</h1></header>
 <section class="form-panel">
   <label>Buscar placa</label><input [(ngModel)]="plate" (ngModelChange)="onPlateChange($event)" placeholder="ABC123" maxlength="10">
-  <button (click)="search()">Buscar vehiculo</button>
+  <button (click)="search()" [disabled]="calculating() || paying()">
+    {{ calculating() ? 'Calculando tarifa...' : 'Buscar vehiculo' }}
+  </button>
+  <p class="notice" *ngIf="message()">{{ message() }}</p>
+  <p class="error" *ngIf="error()">{{ error() }}</p>
   <article class="receipt" *ngIf="found()">
     <h2>{{ found()?.plate }}</h2>
     <p>Entrada: {{ found()?.checkedInAt | date:'short' }}</p>
@@ -12,8 +16,12 @@
       <span *ngIf="found()?.helmetLockerCode">Casco: {{ found()?.helmetLockerCode }}</span>
     </p>
     <p *ngIf="!found()?.keySlotCode && !found()?.helmetLockerCode">Sin llave/casco</p>
+    <p *ngIf="!found()?.monthlySubscription">Tarifa calculada con la configuracion vigente.</p>
+    <p *ngIf="found()?.monthlySubscription">Mensualidad activa: no se genera cobro.</p>
     <b>Total: {{ money(total()) }}</b>
     <select [(ngModel)]="paymentMethod"><option value="CASH">Efectivo</option><option value="DIGITAL">Pago digital</option></select>
-    <button (click)="checkOut()">Registrar salida y pago</button>
+    <button (click)="checkOut()" [disabled]="paying() || calculating()">
+      {{ paying() ? 'Registrando pago...' : 'Registrar salida y pago' }}
+    </button>
   </article>
 </section>

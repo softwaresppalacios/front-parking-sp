@@ -72,3 +72,19 @@ export type PricingRule = {
 };
 
 export type PricingCatalog = { rules: PricingRule[] };
+
+export type MonthlySubscription = {
+  id: number;
+  uuid: string;
+  customerName: string;
+  customerDocument?: string;
+  customerPhone?: string;
+  plate: string;
+  vehicleType: string;
+  amount: number;
+  paymentMethod?: string;
+  startsAt: string;
+  expiresAt: string;
+  paidAt: string;
+  active: boolean;
+};

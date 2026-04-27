@@ -1,36 +1,136 @@
-<header class="page-head"><h1>Mensualidades</h1><button (click)="load()">Actualizar</button></header>
+<header class="page-head">
+  <div>
+    <span class="eyebrow">Mensualidades</span>
+    <h1>Clientes mensuales</h1>
+    <p>Consulta pagos vigentes, compradores y vehiculos registrados.</p>
+  </div>
+  <div class="monthly-actions">
+    <button class="ghost" (click)="load()">Actualizar</button>
+    <button (click)="openModal()">Nueva mensualidad</button>
+  </div>
+</header>
+
 <section class="stats">
-  <article><small>Vehiculos mensuales activos</small><b>{{ monthlyTickets().length }}</b></article>
-  <article><small>Carros mensuales</small><b>{{ countByType('CAR') }}</b></article>
-  <article><small>Motos mensuales</small><b>{{ countByType('MOTORCYCLE') }}</b></article>
-  <article><small>Otros mensuales</small><b>{{ otherMonthlyCount() }}</b></article>
+  <article><small>Mensualidades vigentes</small><b>{{ activeSubscriptions().length }}</b></article>
+  <article><small>Carros</small><b>{{ countByType('CAR') }}</b></article>
+  <article><small>Motos</small><b>{{ countByType('MOTORCYCLE') }}</b></article>
+  <article><small>Total registrado</small><b>{{ money(monthlyRevenue()) }}</b></article>
 </section>
-<section class="panel monthly-layout">
-  <article>
-    <h2>Busqueda rapida</h2>
-    <label>Filtrar por placa</label>
-    <input [(ngModel)]="query" (input)="query = query.toUpperCase()" placeholder="ABC123">
-    <p class="hint">Aqui ves los vehiculos con mensualidad que estan actualmente dentro del parqueadero.</p>
+
+<section class="monthly-overview">
+  <article class="panel monthly-hero">
+    <div>
+      <h2>Control de mensualidades</h2>
+      <p>Registra pagos mensuales con comprador, placa, valor, metodo de pago y vigencia. Cada pago queda tambien en caja.</p>
+    </div>
+    <button (click)="openModal()">Registrar pago mensual</button>
   </article>
-  <article>
-    <h2>Resumen</h2>
-    <p>Total activos hoy: <b>{{ tickets().length }}</b></p>
-    <p>Mensuales ocupando espacio: <b>{{ monthlyTickets().length }}</b></p>
-    <p>Cobro inmediato evitado en caja: <b>{{ monthlyTickets().length }}</b></p>
+
+  <article class="panel monthly-help">
+    <h2>Dentro del parqueadero</h2>
+    <div>
+      <strong>{{ monthlyTickets().length }}</strong>
+      <span>vehiculos mensuales estan actualmente ocupando un espacio.</span>
+    </div>
   </article>
 </section>
+
 <section class="panel">
-  <h2>Vehiculos con mensualidad activa</h2>
+  <div class="monthly-table-head">
+    <div>
+      <h2>Mensualidades registradas</h2>
+      <p>Busca por placa o nombre del comprador.</p>
+    </div>
+    <input [(ngModel)]="query" placeholder="Buscar comprador o placa">
+  </div>
+
   <table>
-    <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Llave/Casco</th><th>Ingreso</th><th>Estado</th></tr>
-    <tr *ngFor="let t of filteredMonthlyTickets()"><td>{{ t.plate }}</td><td>{{ label(t.vehicleType) }}</td><td>{{ t.spaceCode }}</td><td>{{ t.keySlotCode || t.helmetLockerCode || 'N/A' }}</td><td>{{ t.checkedInAt | date:'short' }}</td><td>MENSUAL</td></tr>
+    <tr>
+      <th>Comprador</th>
+      <th>Contacto</th>
+      <th>Placa</th>
+      <th>Tipo</th>
+      <th>Valor</th>
+      <th>Pago</th>
+      <th>Vigencia</th>
+      <th>Estado</th>
+    </tr>
+    <tr *ngFor="let item of filteredSubscriptions()">
+      <td>
+        <strong>{{ item.customerName }}</strong><br>
+        <small>{{ item.customerDocument || 'Sin documento' }}</small>
+      </td>
+      <td>{{ item.customerPhone || 'N/A' }}</td>
+      <td><span class="plate">{{ item.plate }}</span></td>
+      <td>{{ label(item.vehicleType) }}</td>
+      <td>{{ money(item.amount) }}</td>
+      <td>{{ item.paymentMethod === 'DIGITAL' ? 'Pago digital' : 'Efectivo' }}</td>
+      <td>{{ item.startsAt | date:'shortDate' }} - {{ item.expiresAt | date:'shortDate' }}</td>
+      <td><span class="chip" [class.green]="item.active" [class.red]="!item.active">{{ item.active ? 'Activa' : 'Inactiva' }}</span></td>
+    </tr>
   </table>
-  <p class="notice" *ngIf="!filteredMonthlyTickets().length">No hay vehiculos mensuales activos con ese filtro.</p>
+
+  <p class="notice" *ngIf="!filteredSubscriptions().length">No hay mensualidades registradas con ese filtro.</p>
 </section>
-<section class="panel">
-  <h2>Vehiculos por hora actualmente dentro</h2>
-  <table>
-    <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Ingreso</th></tr>
-    <tr *ngFor="let t of nonMonthlyTickets()"><td>{{ t.plate }}</td><td>{{ label(t.vehicleType) }}</td><td>{{ t.spaceCode }}</td><td>{{ t.checkedInAt | date:'short' }}</td></tr>
-  </table>
-</section>
+
+<div class="modal-backdrop" *ngIf="modalOpen()" (click)="closeModal()">
+  <section class="monthly-modal" (click)="$event.stopPropagation()">
+    <header class="monthly-modal__header">
+      <div>
+        <small>Nueva mensualidad</small>
+        <h2>Registrar pago mensual</h2>
+      </div>
+      <button class="monthly-modal__close" type="button" (click)="closeModal()" aria-label="Cerrar modal">
+        <i class="pi pi-times"></i>
+      </button>
+    </header>
+
+    <div class="monthly-form__grid">
+      <label>Nombre del comprador
+        <input [(ngModel)]="form.customerName" placeholder="Ej. Carlos Ramirez">
+      </label>
+      <label>Documento
+        <input [(ngModel)]="form.customerDocument" placeholder="CC / NIT">
+      </label>
+      <label>Celular
+        <input [(ngModel)]="form.customerPhone" placeholder="3000000000">
+      </label>
+      <label>Placa
+        <input [(ngModel)]="form.plate" (ngModelChange)="onPlateChange($event)" placeholder="ABC123" maxlength="10">
+      </label>
+      <label>Tipo de vehiculo
+        <select [(ngModel)]="form.vehicleType">
+          <option value="CAR">Carro</option>
+          <option value="MOTORCYCLE">Moto</option>
+          <option value="HEAVY">Carga pesada</option>
+          <option value="BICYCLE">Bicicleta</option>
+        </select>
+      </label>
+      <label>Valor pagado
+        <div class="currency-input">
+          <span>COP</span>
+          <input type="number" min="0" [(ngModel)]="form.amount">
+        </div>
+      </label>
+      <label>Metodo de pago
+        <select [(ngModel)]="form.paymentMethod">
+          <option value="CASH">Efectivo</option>
+          <option value="DIGITAL">Pago digital</option>
+        </select>
+      </label>
+      <label>Inicio
+        <input type="date" [(ngModel)]="form.startsAt">
+      </label>
+      <label>Meses pagados
+        <input type="number" min="1" [(ngModel)]="form.months">
+      </label>
+    </div>
+
+    <footer class="monthly-modal__footer">
+      <button class="ghost" type="button" (click)="closeModal()">Cancelar</button>
+      <button type="button" (click)="create()" [disabled]="saving()">
+        {{ saving() ? 'Registrando...' : 'Registrar mensualidad' }}
+      </button>
+    </footer>
+  </section>
+</div>
