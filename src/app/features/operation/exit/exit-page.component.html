@@ -6,7 +6,12 @@
     <h2>{{ found()?.plate }}</h2>
     <p>Entrada: {{ found()?.checkedInAt | date:'short' }}</p>
     <p>Espacio: {{ found()?.spaceCode }}</p>
-    <p>{{ found()?.keySlotCode ? 'Llave: ' + found()?.keySlotCode : found()?.helmetLockerCode ? 'Casco: ' + found()?.helmetLockerCode : 'Sin llave/casco' }}</p>
+    <p *ngIf="found()?.keySlotCode || found()?.helmetLockerCode">
+      <span *ngIf="found()?.keySlotCode">Llave: {{ found()?.keySlotCode }}</span>
+      <span *ngIf="found()?.keySlotCode && found()?.helmetLockerCode"> · </span>
+      <span *ngIf="found()?.helmetLockerCode">Casco: {{ found()?.helmetLockerCode }}</span>
+    </p>
+    <p *ngIf="!found()?.keySlotCode && !found()?.helmetLockerCode">Sin llave/casco</p>
     <b>Total: {{ money(total()) }}</b>
     <select [(ngModel)]="paymentMethod"><option value="CASH">Efectivo</option><option value="DIGITAL">Pago digital</option></select>
     <button (click)="checkOut()">Registrar salida y pago</button>

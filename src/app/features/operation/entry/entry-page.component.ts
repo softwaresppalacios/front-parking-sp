@@ -4,7 +4,7 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
-import { Resource, ResourceBoard, Ticket } from '../../../core/models';
+import { BranchConfiguration, PricingCatalog, PricingRule, Resource, ResourceBoard, Tenant, Ticket } from '../../../core/models';
 import { tenantHeaders, tenantIdFromRoute, vehicleLabel } from '../../../core/utils';
 
 @Component({
@@ -25,20 +25,50 @@ export class EntryPageComponent {
   selectedHelmetLocker = '';
   monthlySubscription = false;
   board = signal<ResourceBoard | null>(null);
+  pricingRules = signal<PricingRule[]>([]);
   ticket = signal<Ticket | null>(null);
   error = signal('');
+  branchConfig = signal<BranchConfiguration | null>(null);
 
-  constructor() { this.loadBoard(); }
+  constructor() {
+    this.loadBoard();
+    this.loadPricingRules();
+    this.loadBranchConfig();
+  }
 
   loadBoard() { this.http.get<ResourceBoard>(`${API.operation}/resources/board`, tenantHeaders(this.tenantId)).subscribe(v => this.board.set(v)); }
-  spaces() { return this.usesCompactSpace() ? (this.board()?.motorcycleSpaces || []) : (this.board()?.carSpaces || []); }
+  loadPricingRules() {
+    this.http.get<PricingCatalog>(`${API.pricing}/pricing/rules`, tenantHeaders(this.tenantId)).subscribe({
+      next: response => this.pricingRules.set(response.rules || []),
+      error: () => this.pricingRules.set([])
+    });
+  }
+  loadBranchConfig() {
+    this.http.get<Tenant[]>(`${API.tenant}/tenants`).subscribe({
+      next: tenants => {
+        const tenant = tenants.find(item => item.uuid === this.tenantId);
+        const branch = tenant?.branches?.[0];
+        if (!branch?.uuid) return;
+        this.http.get<BranchConfiguration>(`${API.tenant}/tenants/${this.tenantId}/branches/${branch.uuid}/configuration`).subscribe({
+          next: config => this.branchConfig.set(config),
+          error: () => this.branchConfig.set(null)
+        });
+      },
+      error: () => this.branchConfig.set(null)
+    });
+  }
+  spaces() { return this.usesManagedSpaces() ? (this.usesCompactSpace() ? (this.board()?.motorcycleSpaces || []) : (this.board()?.carSpaces || [])) : []; }
   available(items?: Resource[]) { return (items || []).filter(item => !item.occupied && !item.reserved); }
   onPlateChange(value: string) { this.plate = this.formatPlate(value); }
   resetAssignments() { this.selectedSpace = ''; this.selectedKeySlot = ''; this.selectedHelmetLocker = ''; }
   vehicleLabel() { return vehicleLabel(this.vehicleType); }
+  visibleVehicleLabel(type: string = this.vehicleType) {
+    return this.pricingRules().find(rule => rule.vehicleType === type)?.displayName || vehicleLabel(type);
+  }
+  usesManagedSpaces() { return this.branchConfig()?.manageResources ?? true; }
   usesCompactSpace() { return this.vehicleType === 'MOTORCYCLE' || this.vehicleType === 'BICYCLE'; }
-  showsKeySlots() { return this.vehicleType === 'CAR' || this.vehicleType === 'HEAVY'; }
-  showsHelmetLockers() { return this.vehicleType === 'MOTORCYCLE'; }
+  showsKeySlots() { return this.usesManagedSpaces() && (this.vehicleType === 'CAR' || this.vehicleType === 'HEAVY'); }
+  showsHelmetLockers() { return this.usesManagedSpaces() && (this.vehicleType === 'MOTORCYCLE' || this.vehicleType === 'BICYCLE'); }
 
   private formatPlate(value: string) {
     return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
@@ -48,14 +78,14 @@ export class EntryPageComponent {
     this.error.set('');
     if (!this.plate || this.plate.length < 5) { this.error.set('Ingrese una placa valida.'); return; }
     if (!this.phone || this.phone.length < 7) { this.error.set('Ingrese el celular del conductor.'); return; }
-    if (!this.selectedSpace) { this.error.set('Seleccione un espacio.'); return; }
+    if (this.usesManagedSpaces() && !this.selectedSpace) { this.error.set('Seleccione un espacio.'); return; }
     this.http.post<Ticket>(`${API.operation}/tickets/check-in`, {
       plate: this.plate,
       vehicleType: this.vehicleType,
       driverPhone: this.phone,
-      spaceCode: this.selectedSpace,
-      keySlotCode: this.selectedKeySlot,
-      helmetLockerCode: this.selectedHelmetLocker,
+      spaceCode: this.usesManagedSpaces() ? this.selectedSpace : '',
+      keySlotCode: this.showsKeySlots() ? this.selectedKeySlot : '',
+      helmetLockerCode: this.showsHelmetLockers() ? this.selectedHelmetLocker : '',
       monthlySubscription: this.monthlySubscription
     }, tenantHeaders(this.tenantId))
       .subscribe({

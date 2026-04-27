@@ -11,6 +11,7 @@ export type Branch = {
   motorcycleCapacity?: number;
   keyRackCapacity?: number;
   helmetLockerCapacity?: number;
+  manageResources?: boolean;
   active: boolean;
   schedules?: Schedule[];
 };
@@ -46,6 +47,7 @@ export type BranchConfiguration = {
   motorcycleCapacity: number;
   keyRackCapacity: number;
   helmetLockerCapacity: number;
+  manageResources: boolean;
   active: boolean;
   schedules: Schedule[];
 };

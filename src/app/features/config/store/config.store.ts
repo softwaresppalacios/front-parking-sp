@@ -23,6 +23,7 @@ export class ConfigStore {
     motorcycleCapacity: 0,
     keyRackCapacity: 0,
     helmetLockerCapacity: 0,
+    manageResources: true,
     active: true,
     schedules: []
   });
@@ -49,7 +50,7 @@ export class ConfigStore {
     this.load();
   }
 
-  patchBranch(field: keyof BranchConfiguration, value: string) {
+  patchBranch(field: keyof BranchConfiguration, value: string | number | boolean | null) {
     this.branchConfig.update(config => ({ ...config, [field]: value }));
   }
 
@@ -138,7 +139,11 @@ export class ConfigStore {
   private loadBranchConfig() {
     this.http.get<BranchConfiguration>(`${API.tenant}/tenants/${this.tenantId()}/branches/${this.branchUuid()}/configuration`).subscribe({
       next: config => {
-        this.branchConfig.set({ ...config, schedules: sortSchedules(config.schedules || []) });
+        this.branchConfig.set({
+          ...config,
+          manageResources: config.manageResources ?? true,
+          schedules: sortSchedules(config.schedules || [])
+        });
         this.loading.set(false);
       },
       error: () => {
@@ -171,6 +176,7 @@ export class ConfigStore {
       motorcycleCapacity: this.branchConfig().motorcycleCapacity,
       keyRackCapacity: this.branchConfig().keyRackCapacity,
       helmetLockerCapacity: this.branchConfig().helmetLockerCapacity,
+      manageResources: this.branchConfig().manageResources,
       schedules: this.branchConfig().schedules.map(item => ({
         dayOfWeek: item.dayOfWeek,
         openTime: item.closed ? null : item.openTime,

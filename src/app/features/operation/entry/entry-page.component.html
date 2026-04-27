@@ -4,52 +4,60 @@
     <label>Placa</label><input class="plate-input" [(ngModel)]="plate" name="plate" (ngModelChange)="onPlateChange($event)" placeholder="ABC123" maxlength="10">
     <label>Tipo</label>
     <select [(ngModel)]="vehicleType" name="vehicleType" (ngModelChange)="resetAssignments()">
-      <option value="CAR">Carro normal</option>
-      <option value="HEAVY">Carga pesada</option>
-      <option value="MOTORCYCLE">Moto</option>
-      <option value="BICYCLE">Bicicleta</option>
+      <option value="CAR">{{ visibleVehicleLabel('CAR') }}</option>
+      <option value="HEAVY">{{ visibleVehicleLabel('HEAVY') }}</option>
+      <option value="MOTORCYCLE">{{ visibleVehicleLabel('MOTORCYCLE') }}</option>
+      <option value="BICYCLE">{{ visibleVehicleLabel('BICYCLE') }}</option>
     </select>
     <label>Celular conductor</label><input [(ngModel)]="phone" name="phone" placeholder="3000000000">
-    <label>Asignar espacio</label>
-    <div class="picker-grid">
-      <button
-        type="button"
-        class="picker"
-        *ngFor="let item of spaces()"
-        [class.selected]="selectedSpace === item.code"
-        [class.occupied]="item.occupied || item.reserved"
-        [disabled]="item.occupied || item.reserved"
-        (click)="selectedSpace = item.code">{{ item.code }}</button>
-    </div>
-    <ng-container *ngIf="showsKeySlots()">
-      <label>Tablero de llaves</label>
+
+    <ng-container *ngIf="usesManagedSpaces(); else unmanagedNotice">
+      <label>Asignar espacio</label>
       <div class="picker-grid">
         <button
           type="button"
           class="picker"
-          *ngFor="let item of board()?.keySlots || []"
-          [class.selected]="selectedKeySlot === item.code"
+          *ngFor="let item of spaces()"
+          [class.selected]="selectedSpace === item.code"
           [class.occupied]="item.occupied || item.reserved"
           [disabled]="item.occupied || item.reserved"
-          (click)="selectedKeySlot = item.code">{{ item.code }}</button>
+          (click)="selectedSpace = item.code">{{ item.code }}</button>
       </div>
-      <p class="hint">Opcional. Puedes registrar la entrada sin asignar un slot de llave.</p>
+      <ng-container *ngIf="showsKeySlots()">
+        <label>Tablero de llaves</label>
+        <div class="picker-grid">
+          <button
+            type="button"
+            class="picker"
+            *ngFor="let item of board()?.keySlots || []"
+            [class.selected]="selectedKeySlot === item.code"
+            [class.occupied]="item.occupied || item.reserved"
+            [disabled]="item.occupied || item.reserved"
+            (click)="selectedKeySlot = item.code">{{ item.code }}</button>
+        </div>
+        <p class="hint">Opcional. Puedes registrar la entrada sin asignar un slot de llave.</p>
+      </ng-container>
+      <ng-container *ngIf="showsHelmetLockers()">
+        <label>Casillero de casco</label>
+        <div class="picker-grid">
+          <button
+            type="button"
+            class="picker"
+            *ngFor="let item of board()?.helmetLockers || []"
+            [class.selected]="selectedHelmetLocker === item.code"
+            [class.occupied]="item.occupied || item.reserved"
+            [disabled]="item.occupied || item.reserved"
+            (click)="selectedHelmetLocker = item.code">{{ item.code }}</button>
+        </div>
+      </ng-container>
     </ng-container>
-    <ng-container *ngIf="showsHelmetLockers()">
-      <label>Casillero de casco</label>
-      <div class="picker-grid">
-        <button
-          type="button"
-          class="picker"
-          *ngFor="let item of board()?.helmetLockers || []"
-          [class.selected]="selectedHelmetLocker === item.code"
-          [class.occupied]="item.occupied || item.reserved"
-          [disabled]="item.occupied || item.reserved"
-          (click)="selectedHelmetLocker = item.code">{{ item.code }}</button>
-      </div>
-    </ng-container>
-    <label>Mensualidad activa</label>
-    <select [(ngModel)]="monthlySubscription" name="monthlySubscription"><option [ngValue]="false">No, cobro por hora</option><option [ngValue]="true">Si, mensualidad activa</option></select>
+
+    <ng-template #unmanagedNotice>
+      <p class="hint">Esta sede no usa administracion automatica de espacios. La entrada se registrara sin asignar un cupo.</p>
+    </ng-template>
+
+    <label>TIPO DE INGRESO</label>
+    <select [(ngModel)]="monthlySubscription" name="monthlySubscription"><option [ngValue]="false">Cobro por hora</option><option [ngValue]="true">Mensualidad activa</option></select>
     <button type="button" (click)="checkIn()">Registrar entrada y generar ticket</button>
     <p class="error" *ngIf="error()">{{ error() }}</p>
     <p class="notice" *ngIf="ticket()">Ticket {{ ticket()?.uuid }} asignado a {{ ticket()?.spaceCode }} {{ ticket()?.keySlotCode || ticket()?.helmetLockerCode || '' }}</p>
@@ -57,9 +65,14 @@
   <article class="ticket-preview">
     <small>Vista previa del ticket</small>
     <h2>{{ plate || '--- ---' }}</h2>
-    <p>{{ vehicleLabel() }}</p>
-    <p>Slot: <b>{{ selectedSpace || '-' }}</b></p>
-    <p *ngIf="showsKeySlots()">Llave: <b>{{ selectedKeySlot || '-' }}</b></p>
-    <p *ngIf="showsHelmetLockers()">Casco: <b>{{ selectedHelmetLocker || 'Sin casillero' }}</b></p>
+    <p>{{ visibleVehicleLabel() }}</p>
+    <ng-container *ngIf="usesManagedSpaces(); else ticketWithoutSpace">
+      <p>Slot: <b>{{ selectedSpace || '-' }}</b></p>
+      <p *ngIf="showsKeySlots()">Llave: <b>{{ selectedKeySlot || '-' }}</b></p>
+      <p *ngIf="showsHelmetLockers()">Casco: <b>{{ selectedHelmetLocker || 'Sin casillero' }}</b></p>
+    </ng-container>
+    <ng-template #ticketWithoutSpace>
+      <p>Espacios automaticos: <b>Desactivados</b></p>
+    </ng-template>
   </article>
 </section>
