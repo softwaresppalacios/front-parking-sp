@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
 import { BranchConfiguration, PricingCatalog, PricingRule, Resource, ResourceBoard, Tenant, Ticket } from '../../../core/models';
+import { ToastService } from '../../../core/ui/toast.service';
 import { tenantHeaders, tenantIdFromRoute, vehicleLabel } from '../../../core/utils';
 
 @Component({
@@ -16,6 +17,7 @@ import { tenantHeaders, tenantIdFromRoute, vehicleLabel } from '../../../core/ut
 export class EntryPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
+  private toast = inject(ToastService);
   tenantId = tenantIdFromRoute(this.route);
   plate = '';
   vehicleType = 'CAR';
@@ -74,11 +76,16 @@ export class EntryPageComponent {
     return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
   }
 
+  private showError(message: string) {
+    this.error.set(message);
+    this.toast.error('Faltan datos', message);
+  }
+
   checkIn() {
     this.error.set('');
-    if (!this.plate || this.plate.length < 5) { this.error.set('Ingrese una placa valida.'); return; }
-    if (!this.phone || this.phone.length < 7) { this.error.set('Ingrese el celular del conductor.'); return; }
-    if (this.usesManagedSpaces() && !this.selectedSpace) { this.error.set('Seleccione un espacio.'); return; }
+    if (!this.plate || this.plate.length < 5) { this.showError('Ingrese una placa valida.'); return; }
+    if (!this.phone || this.phone.length < 7) { this.showError('Ingrese el celular del conductor.'); return; }
+    if (this.usesManagedSpaces() && !this.selectedSpace) { this.showError('Seleccione un espacio.'); return; }
     this.http.post<Ticket>(`${API.operation}/tickets/check-in`, {
       plate: this.plate,
       vehicleType: this.vehicleType,
@@ -90,7 +97,7 @@ export class EntryPageComponent {
     }, tenantHeaders(this.tenantId))
       .subscribe({
         next: v => { this.ticket.set(v); this.plate = ''; this.phone = ''; this.monthlySubscription = false; this.resetAssignments(); this.loadBoard(); },
-        error: err => this.error.set(err?.error?.message || 'No se pudo registrar la entrada.')
+        error: err => this.showError(err?.error?.message || 'No se pudo registrar la entrada.')
       });
   }
 }

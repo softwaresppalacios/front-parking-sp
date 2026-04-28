@@ -59,7 +59,6 @@
     <label>TIPO DE INGRESO</label>
     <select [(ngModel)]="monthlySubscription" name="monthlySubscription"><option [ngValue]="false">Cobro por hora</option><option [ngValue]="true">Mensualidad activa</option></select>
     <button type="button" (click)="checkIn()">Registrar entrada y generar ticket</button>
-    <p class="error" *ngIf="error()">{{ error() }}</p>
     <p class="notice" *ngIf="ticket()">Ticket {{ ticket()?.uuid }} asignado a {{ ticket()?.spaceCode }} {{ ticket()?.keySlotCode || ticket()?.helmetLockerCode || '' }}</p>
   </form>
   <article class="ticket-preview">

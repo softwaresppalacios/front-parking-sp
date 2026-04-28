@@ -1,24 +1,107 @@
 <header class="page-head page-head--stacked">
   <div>
-    <span class="eyebrow">Operación en vivo</span>
+    <span class="eyebrow">Operacion en vivo</span>
     <h1>Dashboard</h1>
-    <p>Resumen del parqueadero para {{ tenantId }} con una lectura rápida del estado, ocupación y facturación.</p>
+    <p>Lectura rapida de ocupacion, caja, entradas recientes y mensualidades proximas a vencer.</p>
   </div>
   <div class="page-head__meta">
     <span class="chip red">Tiempo real</span>
     <span class="chip blue">{{ summary()?.activeTickets || 0 }} tickets activos</span>
+    <button (click)="reload()">Actualizar</button>
   </div>
 </header>
+
 <section class="stats">
   <article class="stat-card stat-card--red"><small>Ocupados</small><b>{{ summary()?.occupiedSpaces || 0 }}</b><p class="stat-sub">Espacios en uso actualmente</p></article>
-  <article class="stat-card stat-card--green"><small>Disponibles</small><b>{{ summary()?.availableSpaces || 0 }}</b><p class="stat-sub">Capacidad lista para nuevos ingresos</p></article>
-  <article class="stat-card stat-card--blue"><small>Tickets activos</small><b>{{ summary()?.activeTickets || 0 }}</b><p class="stat-sub">Vehículos dentro del parqueadero</p></article>
-  <article class="stat-card stat-card--amber"><small>Facturado hoy</small><b>{{ money(summary()?.todayRevenue || 0) }}</b><p class="stat-sub">Ingresos acumulados del día</p></article>
+  <article class="stat-card stat-card--green"><small>Disponibles</small><b>{{ summary()?.availableSpaces || 0 }}</b><p class="stat-sub">Listos para nuevos ingresos</p></article>
+  <article class="stat-card stat-card--blue"><small>Facturado hoy</small><b>{{ money(cash()?.todayRevenue || summary()?.todayRevenue || 0) }}</b><p class="stat-sub">{{ cash()?.movements || 0 }} movimientos de caja</p></article>
+  <article class="stat-card stat-card--amber"><small>Mensualidades</small><b>{{ activeMonthlyCount() }}</b><p class="stat-sub">{{ expiringMonthlyCount() }} proximas a vencer</p></article>
 </section>
+
+<section class="dashboard-grid">
+  <article class="panel chart-panel">
+    <div class="chart-head">
+      <div>
+        <h2>Ingresos por hora</h2>
+        <p>Movimientos de caja registrados hoy.</p>
+      </div>
+      <b>{{ money(cash()?.todayRevenue || 0) }}</b>
+    </div>
+    <div class="hour-chart">
+      <div class="hour-bar" *ngFor="let row of revenueByHour()" [style.height]="barHeight(row, revenueByHour())">
+        <span>{{ row.value ? money(row.value) : '' }}</span>
+        <small>{{ row.label }}</small>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel chart-panel">
+    <div class="chart-head">
+      <div>
+        <h2>Entradas por dia</h2>
+        <p>Ultimos tickets registrados.</p>
+      </div>
+      <b>{{ recentTickets().length }}</b>
+    </div>
+    <div class="day-chart">
+      <div class="day-row" *ngFor="let row of entriesByDay()">
+        <span>{{ row.label }}</span>
+        <div><i [style.width]="barWidth(row, entriesByDay())"></i></div>
+        <b>{{ row.value }}</b>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel chart-panel">
+    <div class="chart-head">
+      <div>
+        <h2>Vehiculos por tipo</h2>
+        <p>Entradas recientes agrupadas por categoria.</p>
+      </div>
+    </div>
+    <div class="type-list">
+      <div class="type-row" *ngFor="let row of entriesByType()">
+        <span>{{ row.label }}</span>
+        <div><i [style.width]="barWidth(row, entriesByType())"></i></div>
+        <b>{{ row.value }}</b>
+      </div>
+    </div>
+  </article>
+
+  <article class="panel monthly-panel">
+    <div class="chart-head">
+      <div>
+        <h2>Mensualidades</h2>
+        <p>Pagos y vencimientos del modulo mensual.</p>
+      </div>
+      <b>{{ money(monthlyRevenue()) }}</b>
+    </div>
+    <div class="monthly-kpis">
+      <div><strong>{{ paidMonthlyCount() }}</strong><span>pagadas</span></div>
+      <div><strong>{{ activeMonthlyCount() }}</strong><span>vigentes</span></div>
+      <div><strong>{{ expiringMonthlyCount() }}</strong><span>vencen pronto</span></div>
+    </div>
+    <div class="expiring-list">
+      <h3>Proximas a vencer</h3>
+      <p *ngIf="!expiringSubscriptions().length">No hay mensualidades venciendo en los proximos 7 dias.</p>
+      <div *ngFor="let item of expiringSubscriptions()">
+        <span><b>{{ item.plate }}</b> {{ item.customerName }}</span>
+        <strong>{{ item.expiresAt | date:'shortDate' }}</strong>
+      </div>
+    </div>
+  </article>
+</section>
+
 <section class="panel panel--table">
   <h2>Actividad reciente</h2>
   <table>
-    <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Llave/Casco</th><th>Estado</th></tr>
-    <tr *ngFor="let t of tickets()"><td>{{ t.plate }}</td><td>{{ label(t.vehicleType) }}</td><td>{{ t.spaceCode }}</td><td>{{ t.keySlotCode || t.helmetLockerCode || 'N/A' }}</td><td>{{ t.monthlySubscription ? 'MENSUAL' : t.status }}</td></tr>
+    <tr><th>Placa</th><th>Tipo</th><th>Espacio</th><th>Ingreso</th><th>Estado</th></tr>
+    <tr *ngFor="let t of recentTickets()">
+      <td><span class="plate">{{ t.plate }}</span></td>
+      <td>{{ label(t.vehicleType) }}</td>
+      <td>{{ t.spaceCode || 'N/A' }}</td>
+      <td>{{ t.checkedInAt | date:'short' }}</td>
+      <td>{{ t.monthlySubscription ? 'MENSUAL' : t.status }}</td>
+    </tr>
   </table>
 </section>
