@@ -16,6 +16,8 @@ export type Branch = {
   schedules?: Schedule[];
 };
 
+export type VehicleType = 'CAR' | 'MOTORCYCLE' | 'HEAVY' | 'BICYCLE';
+
 export type Ticket = {
   uuid: string;
   plate: string;
@@ -35,6 +37,17 @@ export type ResourceBoard = { carSpaces: Resource[]; motorcycleSpaces: Resource[
 export type CashMovement = { id: number; ticketUuid: string; amount: number; method: string; paidAt: string };
 export type CashSummary = { todayRevenue: number; cashRevenue: number; digitalRevenue: number; movements: number; recentMovements: CashMovement[] };
 export type Schedule = { dayOfWeek: string; openTime: string | null; closeTime: string | null; closed: boolean };
+
+export type DashboardSummary = {
+  activeTickets: number;
+  occupiedSpaces: number;
+  availableSpaces: number;
+  carOccupiedSpaces: number;
+  carAvailableSpaces: number;
+  motorcycleOccupiedSpaces: number;
+  motorcycleAvailableSpaces: number;
+  todayRevenue: number;
+};
 
 export type BranchConfiguration = {
   id: number;
@@ -72,6 +85,7 @@ export type PricingRule = {
 };
 
 export type PricingCatalog = { rules: PricingRule[] };
+export type PricingCalculation = { ticketUuid: string; billableMinutes: number; subtotal: number; surcharges: number; discounts: number; total: number };
 
 export type MonthlySubscription = {
   id: number;
@@ -87,4 +101,34 @@ export type MonthlySubscription = {
   expiresAt: string;
   paidAt: string;
   active: boolean;
+};
+
+/** Movimiento de caja enriquecido con los datos del ticket o la mensualidad que lo origino. */
+export type CashMovementRow = {
+  n: string;
+  plate: string;
+  vehicleType: string;
+  entry: string;
+  exit: string;
+  duration: string;
+  method: 'CASH' | 'DIGITAL';
+  amount: number;
+  paidAt: string;
+  monthly: boolean;
+};
+
+/** Cierre de caja guardado en el navegador (el backend aun no persiste cierres). */
+export type CashClosure = {
+  id: string;
+  date: string;
+  openedAt: string;
+  closedAt: string;
+  responsible: string;
+  vehicles: number;
+  cash: number;
+  digital: number;
+  monthly: number;
+  total: number;
+  notes: string;
+  movements: CashMovementRow[];
 };

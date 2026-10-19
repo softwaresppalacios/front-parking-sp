@@ -1,65 +1,45 @@
-<main class="login-screen">
-  <section class="login-copy">
-    <span class="login-kicker">SP Parqueaderos</span>
-    <h1>Gestiona tu operación con una interfaz más premium</h1>
-    <p>
-      Un panel pensado para verse sólido, moderno y confiable: control de accesos, caja, mensualidades y reportes en una
-      experiencia visual más limpia y sofisticada.
-    </p>
-
-    <div class="login-signals">
-      <article class="login-signal">
-        <strong>+ claridad</strong>
-        <span>Jerarquía visual más fuerte para operar sin fricción.</span>
-      </article>
-      <article class="login-signal">
-        <strong>+ velocidad</strong>
-        <span>Acciones principales visibles, directas y bien agrupadas.</span>
-      </article>
-      <article class="login-signal">
-        <strong>+ presencia</strong>
-        <span>Un estilo contemporáneo que se siente diseñado a medida.</span>
-      </article>
+<div class="login-screen" [class.leaving]="leaving()">
+  <div class="lg-glow a"></div>
+  <div class="lg-glow b"></div>
+  <form class="lg-card" (ngSubmit)="login()">
+    <div class="lg-logo">
+      <svg width="120" height="76" viewBox="0 0 120 76" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="42" cy="33" rx="37" ry="27" stroke="rgba(220,38,38,0.12)" stroke-width="13" fill="none"/>
+        <text x="46" y="52" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="900" font-size="54" fill="#1a1a1a">P</text>
+        <text x="25" y="52" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="900" font-size="54" fill="#DC2626">S</text>
+        <path d="M9 16 Q44 -2 82 16" stroke="#DC2626" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M7 50 Q44 70 84 50" stroke="#1a1a1a" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <rect x="85" y="24" width="7" height="36" rx="2.5" fill="#DC2626"/>
+        <rect x="85" y="26" width="32" height="6" rx="2.5" fill="#DC2626"/>
+        <rect x="95" y="26" width="5" height="6" fill="#fff" opacity="0.55" rx="1"/>
+        <rect x="107" y="26" width="5" height="6" fill="#fff" opacity="0.55" rx="1"/>
+        <rect x="92" y="38" width="22" height="11" rx="3" fill="#CBD5E1"/>
+        <rect x="95" y="34" width="14" height="7" rx="2" fill="#E2E8F0"/>
+        <circle cx="95" cy="50" r="3" fill="#94A3B8"/>
+        <circle cx="111" cy="50" r="3" fill="#94A3B8"/>
+        <rect x="0" y="62" width="120" height="3" rx="1.5" fill="rgba(220,38,38,0.1)"/>
+      </svg>
+      <div class="lg-brand">SP <span>PARQUEADEROS</span></div>
+      <div class="lg-sub">SISTEMA DE GESTIÓN PROFESIONAL</div>
     </div>
-  </section>
-
-  <section class="login-card">
-    <div class="login-brand-row">
-      <div class="brand-mark brand-mark--image">
-        <img src="/img/application/logo-parking.png" alt="Logo SP Parqueaderos">
-      </div>
-      <div class="brand-copy">
-        <strong>SP Parqueaderos</strong>
-        <span>Gestion SaaS para parqueaderos</span>
-      </div>
+    <div class="lg-title">Iniciar Sesión</div>
+    <div class="lg-hint">Panel de administración · Pasto, Nariño</div>
+    <label class="lg-lbl" for="lEmail">Correo electrónico</label>
+    <input type="email" class="lg-inp" id="lEmail" name="email" placeholder="admin@parqueadero.co" [(ngModel)]="email" autocomplete="username">
+    <label class="lg-lbl" for="lPass">Contraseña</label>
+    <input type="password" class="lg-inp" id="lPass" name="password" placeholder="••••••••" [(ngModel)]="password" autocomplete="current-password">
+    <div class="lg-forgot">
+      <span role="button" tabindex="0" (click)="forgotPassword()" (keydown.enter)="forgotPassword()">¿Olvidaste tu contraseña?</span>
     </div>
-
-    <div class="login-title">
-      <h2>Acceso al panel</h2>
-      <p>Ingresa con tus credenciales para abrir la operación del parqueadero.</p>
+    <button type="submit" class="lg-btn" [disabled]="loading()">🔐 &nbsp;{{ loading() ? 'INGRESANDO...' : 'INGRESAR AL SISTEMA' }}</button>
+    <button type="button" class="lg-demo" (click)="demo()" [disabled]="loading()">Entrar con la cuenta demo →</button>
+    <div class="lg-error" *ngIf="error()">{{ error() }}</div>
+    <div class="lg-divider"></div>
+    <div class="lg-status">
+      <div class="lg-dot" [class.off]="!online()"></div>
+      <span>{{ online() ? 'Servicios en línea · Colombia' : 'Servicios sin conexión' }}</span>
     </div>
-
-    <div class="login-field">
-      <label>Email</label>
-      <input pInputText [(ngModel)]="email" placeholder="admin@spparqueaderos.com">
-    </div>
-
-    <div class="login-field">
-      <label>Contraseña</label>
-      <p-password [(ngModel)]="password" [feedback]="false" [toggleMask]="true" placeholder="admin123"></p-password>
-    </div>
-
-    <div class="login-actions">
-      <button pButton type="button" label="Iniciar sesión" icon="pi pi-sign-in" (click)="login()"></button>
-      <button class="ghost" type="button" (click)="demo()"><i class="pi pi-bolt"></i> Entrar con demo</button>
-    </div>
-
-    <div class="login-helper">
-      <span><i class="pi pi-shield"></i> Sesión protegida</span>
-      <span>Operación en tiempo real</span>
-    </div>
-
-    <span class="error" *ngIf="error()">{{ error() }}</span>
-    <p class="login-foot">Diseñado para una experiencia de trabajo más elegante, ordenada y profesional.</p>
-  </section>
-</main>
+    <div class="lg-foot">¿No tienes cuenta? <a routerLink="/registro">Regístrate gratis</a></div>
+  </form>
+  <div class="lg-wm">SP PARQUEADEROS · SISTEMA PROFESIONAL · PASTO, NARIÑO</div>
+</div>

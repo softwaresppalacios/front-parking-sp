@@ -1,40 +1,70 @@
-<header class="page-head"><h1>Reportes</h1><button (click)="load()">Actualizar</button></header>
-<section class="stats">
-  <article><small>Facturado hoy</small><b>{{ money(cash()?.todayRevenue || 0) }}</b></article>
-  <article><small>Pagos en efectivo</small><b>{{ money(cash()?.cashRevenue || 0) }}</b></article>
-  <article><small>Pagos digitales</small><b>{{ money(cash()?.digitalRevenue || 0) }}</b></article>
-  <article><small>Tickets activos</small><b>{{ tickets().length }}</b></article>
-</section>
-<section class="report-grid">
-  <article class="panel">
-    <h2>Ocupacion por tipo</h2>
-    <table>
-      <tr><th>Tipo</th><th>Activos</th><th>Mensuales</th></tr>
-      <tr *ngFor="let row of occupancyRows()"><td>{{ row.label }}</td><td>{{ row.active }}</td><td>{{ row.monthly }}</td></tr>
-    </table>
-  </article>
-  <article class="panel">
-    <h2>Uso de capacidad</h2>
-    <table>
-      <tr><th>Recurso</th><th>Configurado</th><th>En uso</th><th>Disponible</th></tr>
-      <tr><td>Carros</td><td>{{ branchConfig()?.carCapacity || 0 }}</td><td>{{ carsInUse() }}</td><td>{{ available((branchConfig()?.carCapacity || 0), carsInUse()) }}</td></tr>
-      <tr><td>Motos</td><td>{{ branchConfig()?.motorcycleCapacity || 0 }}</td><td>{{ motorcyclesInUse() }}</td><td>{{ available((branchConfig()?.motorcycleCapacity || 0), motorcyclesInUse()) }}</td></tr>
-      <tr><td>Llaves</td><td>{{ branchConfig()?.keyRackCapacity || 0 }}</td><td>{{ keysInUse() }}</td><td>{{ available((branchConfig()?.keyRackCapacity || 0), keysInUse()) }}</td></tr>
-      <tr><td>Cascos</td><td>{{ branchConfig()?.helmetLockerCapacity || 0 }}</td><td>{{ helmetsInUse() }}</td><td>{{ available((branchConfig()?.helmetLockerCapacity || 0), helmetsInUse()) }}</td></tr>
-    </table>
-  </article>
-</section>
-<section class="panel">
-  <h2>Movimientos recientes de caja</h2>
-  <table>
-    <tr><th>Hora</th><th>Ticket</th><th>Metodo</th><th>Valor</th></tr>
-    <tr *ngFor="let m of cash()?.recentMovements"><td>{{ m.paidAt | date:'shortTime' }}</td><td>{{ m.ticketUuid }}</td><td>{{ m.method === 'CASH' ? 'Efectivo' : 'Digital' }}</td><td>{{ money(+m.amount) }}</td></tr>
-  </table>
-</section>
-<section class="panel">
-  <h2>Vehiculos dentro del parqueadero</h2>
-  <table>
-    <tr><th>Placa</th><th>Tipo</th><th>Modalidad</th><th>Espacio</th><th>Ingreso</th></tr>
-    <tr *ngFor="let t of tickets()"><td>{{ t.plate }}</td><td>{{ label(t.vehicleType) }}</td><td>{{ t.monthlySubscription ? 'Mensualidad' : 'Por hora' }}</td><td>{{ t.spaceCode }}</td><td>{{ t.checkedInAt | date:'short' }}</td></tr>
-  </table>
-</section>
+<div class="view">
+  <form class="card mb20 no-print" (ngSubmit)="generate()">
+    <div class="card-title">Generar Reporte</div>
+    <div class="filter-row">
+      <div class="fg"><label class="fl" for="rFrom">Fecha inicio</label><input type="date" class="fi" id="rFrom" name="from" [(ngModel)]="form.from"></div>
+      <div class="fg"><label class="fl" for="rTo">Fecha fin</label><input type="date" class="fi" id="rTo" name="to" [(ngModel)]="form.to"></div>
+      <div class="fg"><label class="fl" for="rType">Tipo vehículo</label>
+        <select class="fs" id="rType" name="type" [(ngModel)]="form.type">
+          <option value="">Todos</option>
+          <option value="CAR">Carros</option>
+          <option value="MOTORCYCLE">Motos</option>
+          <option value="HEAVY">Carga pesada</option>
+          <option value="BICYCLE">Bicicletas</option>
+        </select>
+      </div>
+      <button class="btn-primary" type="submit">↗ Generar</button>
+      <button class="btn-secondary" type="button" (click)="print()">↓ PDF</button>
+    </div>
+  </form>
+
+  <div class="stats-row mb20">
+    <div class="stat-card green"><div class="stat-label">Total recaudado</div><div class="stat-value">{{ compact(totalRevenue()) }}</div><div class="stat-sub">{{ rangeLabel() }}</div></div>
+    <div class="stat-card blue"><div class="stat-label">Vehículos atendidos</div><div class="stat-value">{{ inRange().length }}</div><div class="stat-sub">{{ (inRange().length / days()) | number:'1.0-1' }} promedio/día</div></div>
+    <div class="stat-card red"><div class="stat-label">Ticket promedio</div><div class="stat-value">{{ money(averageTicket()) }}</div><div class="stat-sub">por vehículo</div></div>
+    <div class="stat-card amber"><div class="stat-label">Mensualidades</div><div class="stat-value">{{ compact(activeMonthlyAmount()) }}</div><div class="stat-sub">{{ activeMonthly().length }} clientes activos</div></div>
+  </div>
+
+  <div class="g2 mb20">
+    <div class="card">
+      <div class="card-title">Ingresos diarios ({{ monthLabel() }})</div>
+      <div class="chart-bars tall">
+        <div class="cbar-wrap" *ngFor="let bar of daily()" [title]="shortDate(bar.key) + ': ' + money(bar.value)">
+          <div class="cbar green" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
+          <div class="cbar-lbl">{{ bar.label }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Por tipo de vehículo</div>
+      <div style="padding:8px 0">
+        <ng-container *ngFor="let row of byType()">
+          <div class="dist-row"><span>{{ row.label }}</span><span [style.color]="row.color">{{ money(row.value) }} — {{ row.pct }}%</span></div>
+          <div class="pbar"><div class="pfill {{ row.fill }}" [style.width.%]="row.pct"></div></div>
+        </ng-container>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Detalle de Registros <span class="card-title-hint">{{ tickets().length }} registros guardados en este navegador</span></div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Fecha</th><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Pago</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let ticket of detail()">
+            <td class="td-mono sm muted">{{ shortDate(dateKey(ticket.checkedOutAt || ticket.checkedInAt)) }}</td>
+            <td><span class="plate">{{ plate(ticket.plate) }}</span></td>
+            <td><span class="tbadge {{ meta(ticket.vehicleType).cls }}">{{ meta(ticket.vehicleType).emoji }} {{ meta(ticket.vehicleType).short }}</span></td>
+            <td class="td-mono sm">{{ hhmm(ticket.checkedInAt) }}</td>
+            <td class="td-mono sm">{{ hhmm(ticket.checkedOutAt) }}</td>
+            <td class="td-mono sm muted">{{ duration(ticket) }}</td>
+            <td><span class="chip sm {{ method(ticket).cls }}">{{ method(ticket).label }}</span></td>
+            <td class="td-money">{{ ticket.monthlySubscription ? 'Mensual' : money(ticket.amountDue || 0) }}</td>
+          </tr>
+          <tr *ngIf="!detail().length"><td colspan="8" class="empty">No hay registros cerrados en el período seleccionado</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

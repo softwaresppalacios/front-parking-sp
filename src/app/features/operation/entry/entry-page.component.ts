@@ -1,12 +1,16 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
-import { BranchConfiguration, PricingCatalog, PricingRule, Resource, ResourceBoard, Tenant, Ticket } from '../../../core/models';
+import { MonthlySubscription, Resource, ResourceBoard, Ticket } from '../../../core/models';
+import { LocalHistoryService } from '../../../core/state/local-history.service';
+import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
-import { tenantHeaders, tenantIdFromRoute, vehicleLabel } from '../../../core/utils';
+import {
+  VEHICLE_TYPES, cleanPlate, displayPlate, formatPlate, hhmm, shortDate, tenantHeaders, tenantIdFromRoute, usesCompactSpace, vehicleMeta, whatsappUrl
+} from '../../../core/utils';
 
 @Component({
   selector: 'entry-page',
@@ -18,86 +22,188 @@ export class EntryPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
+  private history = inject(LocalHistoryService);
+  context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
+  vehicleTypes = VEHICLE_TYPES;
+
   plate = '';
-  vehicleType = 'CAR';
+  vehicleType = '';
   phone = '';
   selectedSpace = '';
   selectedKeySlot = '';
   selectedHelmetLocker = '';
-  monthlySubscription = false;
+  monthlyUuid = '';
+  sendWhatsapp = true;
+  previewCode = this.randomCode();
+  now = new Date();
+
   board = signal<ResourceBoard | null>(null);
-  pricingRules = signal<PricingRule[]>([]);
-  ticket = signal<Ticket | null>(null);
-  error = signal('');
-  branchConfig = signal<BranchConfiguration | null>(null);
+  saving = signal(false);
+  lastTicket = signal<{ ticket: Ticket; phone: string } | null>(null);
 
   constructor() {
     this.loadBoard();
-    this.loadPricingRules();
-    this.loadBranchConfig();
+    const clock = window.setInterval(() => { this.now = new Date(); }, 15_000);
+    inject(DestroyRef).onDestroy(() => window.clearInterval(clock));
+    const slot = this.route.snapshot.queryParamMap.get('slot');
+    if (slot) {
+      this.vehicleType = slot.startsWith('M') ? 'MOTORCYCLE' : 'CAR';
+      this.selectedSpace = slot;
+    }
   }
 
-  loadBoard() { this.http.get<ResourceBoard>(`${API.operation}/resources/board`, tenantHeaders(this.tenantId)).subscribe(v => this.board.set(v)); }
-  loadPricingRules() {
-    this.http.get<PricingCatalog>(`${API.pricing}/pricing/rules`, tenantHeaders(this.tenantId)).subscribe({
-      next: response => this.pricingRules.set(response.rules || []),
-      error: () => this.pricingRules.set([])
+  loadBoard() {
+    this.http.get<ResourceBoard>(`${API.operation}/resources/board`, tenantHeaders(this.tenantId)).subscribe({
+      next: board => this.board.set(board),
+      error: () => this.board.set(null)
     });
   }
-  loadBranchConfig() {
-    this.http.get<Tenant[]>(`${API.tenant}/tenants`).subscribe({
-      next: tenants => {
-        const tenant = tenants.find(item => item.uuid === this.tenantId);
-        const branch = tenant?.branches?.[0];
-        if (!branch?.uuid) return;
-        this.http.get<BranchConfiguration>(`${API.tenant}/tenants/${this.tenantId}/branches/${branch.uuid}/configuration`).subscribe({
-          next: config => this.branchConfig.set(config),
-          error: () => this.branchConfig.set(null)
-        });
-      },
-      error: () => this.branchConfig.set(null)
-    });
-  }
-  spaces() { return this.usesManagedSpaces() ? (this.usesCompactSpace() ? (this.board()?.motorcycleSpaces || []) : (this.board()?.carSpaces || [])) : []; }
-  available(items?: Resource[]) { return (items || []).filter(item => !item.occupied && !item.reserved); }
-  onPlateChange(value: string) { this.plate = this.formatPlate(value); }
-  resetAssignments() { this.selectedSpace = ''; this.selectedKeySlot = ''; this.selectedHelmetLocker = ''; }
-  vehicleLabel() { return vehicleLabel(this.vehicleType); }
-  visibleVehicleLabel(type: string = this.vehicleType) {
-    return this.pricingRules().find(rule => rule.vehicleType === type)?.displayName || vehicleLabel(type);
-  }
-  usesManagedSpaces() { return this.branchConfig()?.manageResources ?? true; }
-  usesCompactSpace() { return this.vehicleType === 'MOTORCYCLE' || this.vehicleType === 'BICYCLE'; }
-  showsKeySlots() { return this.usesManagedSpaces() && (this.vehicleType === 'CAR' || this.vehicleType === 'HEAVY'); }
-  showsHelmetLockers() { return this.usesManagedSpaces() && (this.vehicleType === 'MOTORCYCLE' || this.vehicleType === 'BICYCLE'); }
 
-  private formatPlate(value: string) {
-    return (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+  spaces(): Resource[] {
+    if (!this.context.manageResources()) return [];
+    const board = this.board();
+    const items = usesCompactSpace(this.vehicleType) ? board?.motorcycleSpaces : board?.carSpaces;
+    return this.sorted(items || []);
+  }
+  keySlots() { return this.sorted(this.board()?.keySlots || []); }
+  helmetLockers() { return this.sorted(this.board()?.helmetLockers || []); }
+  isTaken(item: Resource) { return item.occupied || item.reserved; }
+  showsKeySlots() { return this.context.manageResources() && !usesCompactSpace(this.vehicleType); }
+  showsHelmetLockers() { return this.context.manageResources() && usesCompactSpace(this.vehicleType); }
+
+  pick(kind: 'space' | 'key' | 'helmet', item: Resource) {
+    if (this.isTaken(item)) return;
+    if (kind === 'space') this.selectedSpace = this.selectedSpace === item.code ? '' : item.code;
+    if (kind === 'key') this.selectedKeySlot = this.selectedKeySlot === item.code ? '' : item.code;
+    if (kind === 'helmet') this.selectedHelmetLocker = this.selectedHelmetLocker === item.code ? '' : item.code;
   }
 
-  private showError(message: string) {
-    this.error.set(message);
-    this.toast.error('Faltan datos', message);
+  onPlateChange(value: string) {
+    this.plate = formatPlate(value);
+    const subscription = this.context.activeSubscriptionFor(cleanPlate(this.plate));
+    if (subscription) {
+      this.applySubscription(subscription);
+    } else if (this.monthlyUuid) {
+      const current = this.context.activeSubscriptions().find(item => item.uuid === this.monthlyUuid);
+      if (current && current.plate !== cleanPlate(this.plate)) this.monthlyUuid = '';
+    }
+  }
+
+  onTypeChange() {
+    this.selectedSpace = '';
+    this.selectedKeySlot = '';
+    this.selectedHelmetLocker = '';
+  }
+
+  onMonthlyChange(uuid: string) {
+    this.monthlyUuid = uuid;
+    const subscription = this.context.activeSubscriptions().find(item => item.uuid === uuid);
+    if (subscription) this.applySubscription(subscription);
+  }
+
+  subscriptionLabel(item: MonthlySubscription) {
+    return `✓ ${displayPlate(item.plate)} — ${item.customerName} (vence ${shortDate(item.expiresAt)})`;
+  }
+
+  typeOption(type: string) { return `${vehicleMeta(type).emoji} ${this.context.vehicleName(type)}`; }
+  typeLabel() { return this.vehicleType ? this.typeOption(this.vehicleType) : '—'; }
+  keyText() { return this.showsHelmetLockers() ? (this.selectedHelmetLocker || '—') : (this.selectedKeySlot || '—'); }
+  ticketCode() { return this.lastTicket() && !this.plate ? this.codeFor(this.lastTicket()!.ticket) : this.previewCode; }
+  fecha() { return this.now.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  hora() { return hhmm(this.now); }
+  address() {
+    const branch = this.context.branch();
+    return [branch?.name, branch?.address].filter(Boolean).join(' · ') || this.context.parkingName();
   }
 
   checkIn() {
-    this.error.set('');
-    if (!this.plate || this.plate.length < 5) { this.showError('Ingrese una placa valida.'); return; }
-    if (!this.phone || this.phone.length < 7) { this.showError('Ingrese el celular del conductor.'); return; }
-    if (this.usesManagedSpaces() && !this.selectedSpace) { this.showError('Seleccione un espacio.'); return; }
+    if (this.saving()) return;
+    this.now = new Date();
+    const plate = cleanPlate(this.plate);
+    if (!plate || plate.length < 5) { this.toast.err('Ingrese una placa válida'); return; }
+    if (!this.vehicleType) { this.toast.err('Seleccione el tipo de vehículo'); return; }
+    if (!this.phone || this.phone.replace(/\D/g, '').length < 7) { this.toast.err('Ingrese el celular del conductor'); return; }
+    if (this.context.manageResources() && !this.selectedSpace) { this.toast.err('Seleccione un slot disponible'); return; }
+
+    // La ventana se abre dentro del clic para que el navegador no la bloquee; se llena al guardar.
+    const waWindow = this.sendWhatsapp ? window.open('', '_blank') : null;
+    const phone = this.phone;
+    this.saving.set(true);
     this.http.post<Ticket>(`${API.operation}/tickets/check-in`, {
-      plate: this.plate,
+      plate,
       vehicleType: this.vehicleType,
-      driverPhone: this.phone,
-      spaceCode: this.usesManagedSpaces() ? this.selectedSpace : '',
+      driverPhone: phone,
+      spaceCode: this.context.manageResources() ? this.selectedSpace : '',
       keySlotCode: this.showsKeySlots() ? this.selectedKeySlot : '',
       helmetLockerCode: this.showsHelmetLockers() ? this.selectedHelmetLocker : '',
-      monthlySubscription: this.monthlySubscription
-    }, tenantHeaders(this.tenantId))
-      .subscribe({
-        next: v => { this.ticket.set(v); this.plate = ''; this.phone = ''; this.monthlySubscription = false; this.resetAssignments(); this.loadBoard(); },
-        error: err => this.showError(err?.error?.message || 'No se pudo registrar la entrada.')
-      });
+      monthlySubscription: !!this.monthlyUuid
+    }, tenantHeaders(this.tenantId)).subscribe({
+      next: ticket => {
+        this.history.mergeTickets(this.tenantId, [ticket]);
+        this.lastTicket.set({ ticket, phone });
+        this.toast.ok(`Vehículo ${displayPlate(ticket.plate)} registrado exitosamente`);
+        if (waWindow) {
+          waWindow.location.href = whatsappUrl(phone, this.whatsappText(ticket));
+          window.setTimeout(() => this.toast.info(`Ticket enviado por WhatsApp a ${phone}`, '📲'), 1200);
+        }
+        this.resetForm();
+        this.loadBoard();
+        this.saving.set(false);
+      },
+      error: err => {
+        waWindow?.close();
+        this.toast.err(this.errorMessage(err));
+        this.saving.set(false);
+      }
+    });
   }
+
+  resendWhatsapp() {
+    const last = this.lastTicket();
+    if (last) window.open(whatsappUrl(last.phone, this.whatsappText(last.ticket)), '_blank');
+  }
+
+  private whatsappText(ticket: Ticket) {
+    const lines = [
+      '🅿️ *SP Parqueaderos*',
+      this.context.parkingName(),
+      `Placa: ${displayPlate(ticket.plate)}`,
+      `Slot: ${ticket.spaceCode || '—'}`,
+      `Llaves: ${ticket.keySlotCode || ticket.helmetLockerCode || '—'}`,
+      `Hora: ${hhmm(ticket.checkedInAt)}`,
+      `Ticket: ${this.codeFor(ticket)}`,
+      'Guarde este mensaje como comprobante.'
+    ];
+    return lines.join('\n');
+  }
+
+  private applySubscription(subscription: MonthlySubscription) {
+    this.monthlyUuid = subscription.uuid;
+    this.plate = displayPlate(subscription.plate);
+    if (this.vehicleType !== subscription.vehicleType) {
+      this.vehicleType = subscription.vehicleType;
+      this.onTypeChange();
+    }
+    if (!this.phone && subscription.customerPhone) this.phone = subscription.customerPhone;
+  }
+
+  private resetForm() {
+    this.plate = '';
+    this.vehicleType = '';
+    this.phone = '';
+    this.monthlyUuid = '';
+    this.onTypeChange();
+    this.previewCode = this.randomCode();
+  }
+
+  private errorMessage(err: { status?: number; error?: { message?: string } }) {
+    if (err?.status === 409) return 'El vehículo ya tiene un ticket activo o el espacio no está disponible';
+    if (err?.status === 0) return 'No hay conexión con el servicio de operación';
+    return err?.error?.message || 'No se pudo registrar la entrada';
+  }
+
+  private codeFor(ticket: Ticket) { return 'SPP-' + ticket.uuid.replace(/-/g, '').slice(0, 6).toUpperCase(); }
+  private randomCode() { return 'SPP-' + Math.random().toString(36).slice(2, 8).toUpperCase(); }
+  private sorted(items: Resource[]) { return [...items].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })); }
 }

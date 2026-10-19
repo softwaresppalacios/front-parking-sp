@@ -1,14 +1,84 @@
-<header class="page-head"><h1>Caja del Dia</h1><button (click)="load()">Actualizar</button></header>
-<section class="stats">
-  <article><small>Total recaudado</small><b>{{ money(summary()?.todayRevenue || 0) }}</b></article>
-  <article><small>Efectivo</small><b>{{ money(summary()?.cashRevenue || 0) }}</b></article>
-  <article><small>Digital</small><b>{{ money(summary()?.digitalRevenue || 0) }}</b></article>
-  <article><small>Movimientos</small><b>{{ summary()?.movements || 0 }}</b></article>
-</section>
-<section class="panel">
-  <h2>Movimientos del dia</h2>
-  <table>
-    <tr><th>#</th><th>Ticket</th><th>Hora</th><th>Pago</th><th>Valor</th></tr>
-    <tr *ngFor="let m of summary()?.recentMovements"><td>{{ m.id }}</td><td>{{ m.ticketUuid }}</td><td>{{ m.paidAt | date:'shortTime' }}</td><td>{{ m.method === 'CASH' ? 'Efectivo' : 'Digital' }}</td><td>{{ money(+m.amount) }}</td></tr>
-  </table>
-</section>
+<div class="view">
+  <div class="caja-header">
+    <div>
+      <div class="caja-lbl">Total recaudado hoy</div>
+      <div class="caja-total">{{ money(total()) }}</div>
+      <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+        <span class="chip green">💵 Efectivo: {{ money(summary()?.cashRevenue || 0) }}</span>
+        <span class="chip blue">📱 Digital: {{ money(summary()?.digitalRevenue || 0) }}</span>
+        <span class="chip amber" *ngIf="monthlyTotal()">♻ Mensualidades: {{ money(monthlyTotal()) }}</span>
+      </div>
+    </div>
+    <div class="caja-summary">
+      <div class="caja-lbl" style="margin-bottom:8px">Resumen del día</div>
+      <div class="line">Vehículos atendidos: <b>{{ vehicleRows().length }}</b></div>
+      <div class="line">Apertura: <b>{{ openingTime() }}</b></div>
+      <div class="line green">Promedio/vehículo: <b>{{ money(average()) }}</b></div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+        <span class="sbadge cerrada" *ngIf="todayClosure() as closure">Cerrada {{ closure.closedAt }}</span>
+        <button class="close-btn" (click)="openClose()">◈ {{ todayClosure() ? 'Actualizar Cierre' : 'Cerrar Caja del Día' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="g65">
+    <div class="card">
+      <div class="card-title">Movimientos del Día <span class="card-title-hint"><button class="btn btn-ghost sm" (click)="load()">↻ Actualizar</button></span></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Pago</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let row of rows()">
+              <td class="td-mono xs">#{{ row.n }}</td>
+              <td><span class="plate">{{ row.plate }}</span></td>
+              <td><span class="tbadge {{ meta(row.vehicleType).cls }}">{{ meta(row.vehicleType).emoji }} {{ row.monthly ? 'mensual' : meta(row.vehicleType).short.toLowerCase() }}</span></td>
+              <td class="td-mono sm">{{ row.entry }}</td>
+              <td class="td-mono sm">{{ row.exit }}</td>
+              <td class="td-mono sm muted">{{ row.duration }}</td>
+              <td><span class="chip sm" [class.green]="row.method === 'CASH'" [class.blue]="row.method === 'DIGITAL'">{{ row.method === 'CASH' ? '💵 Efectivo' : '📱 Digital' }}</span></td>
+              <td class="td-money">{{ money(row.amount) }}</td>
+            </tr>
+            <tr *ngIf="!rows().length"><td colspan="8" class="empty">Aún no hay pagos registrados hoy</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div class="card-title">Ingresos por hora</div>
+        <div class="chart-bars">
+          <div class="cbar-wrap" *ngFor="let bar of hourly()" [title]="bar.label + ': ' + money(bar.value)">
+            <div class="cbar red" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
+            <div class="cbar-lbl">{{ bar.label }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Cierres Anteriores</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div class="prev-close" *ngFor="let item of previousClosures()"><span>{{ closureLabel(item) }}</span><span>{{ money(item.total) }}</span></div>
+          <div class="empty-note" *ngIf="!previousClosures().length">Aún no hay cierres anteriores registrados.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="modalOpen()" (click)="modalOpen.set(false)">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-title">◈ Cierre de Caja — {{ todayLabel() }}</div>
+    <div class="modal-box">
+      <div class="calc-row"><span>Efectivo recibido</span><span>{{ money(summary()?.cashRevenue || 0) }}</span></div>
+      <div class="calc-row"><span>Pago digital</span><span>{{ money(summary()?.digitalRevenue || 0) }}</span></div>
+      <div class="calc-row"><span>Mensualidades cobradas (incluidas)</span><span>{{ money(monthlyTotal()) }}</span></div>
+      <div class="calc-row"><span>Vehículos atendidos</span><span>{{ vehicleRows().length }}</span></div>
+      <div class="divider" style="margin:8px 0"></div>
+      <div class="calc-row"><span style="font-weight:600;font-size:15px">TOTAL DEL DÍA</span><span class="cv big">{{ money(total()) }}</span></div>
+    </div>
+    <div class="fg"><label class="fl" for="closeNotes">Observaciones</label><input class="fi" id="closeNotes" placeholder="Novedades del día..." [(ngModel)]="notes"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" (click)="modalOpen.set(false)">Cancelar</button>
+      <button class="btn btn-g" (click)="confirmClose()">✓ Confirmar Cierre de Caja</button>
+    </div>
+  </div>
+</div>

@@ -1,40 +1,70 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
-import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
-import { PasswordModule } from 'primeng/password';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { API } from '../../../core/api/api.config';
+import { AuthService } from '../../../core/auth/auth.service';
+import { ToastService } from '../../../core/ui/toast.service';
+
+const DEMO_EMAIL = 'admin@spparqueaderos.com';
+const DEMO_PASSWORD = 'admin123';
 
 @Component({
   selector: 'login-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonModule, InputTextModule, PasswordModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './login-page.component.html'
 })
 export class LoginPageComponent {
   private http = inject(HttpClient);
   private router = inject(Router);
-  email = 'admin@spparqueaderos.com';
-  password = 'admin123';
+  private route = inject(ActivatedRoute);
+  private auth = inject(AuthService);
+  private toast = inject(ToastService);
+  email = '';
+  password = '';
   error = signal('');
+  loading = signal(false);
+  leaving = signal(false);
+  online = signal(true);
+
+  constructor() {
+    this.http.get(`${API.tenant}/tenants`).subscribe({ next: () => this.online.set(true), error: () => this.online.set(false) });
+    if (this.route.snapshot.queryParamMap.get('expirada')) {
+      this.error.set('Tu sesión expiró. Inicia sesión de nuevo.');
+    }
+  }
 
   demo() {
-    this.email = 'admin@spparqueaderos.com';
-    this.password = 'admin123';
+    this.email = DEMO_EMAIL;
+    this.password = DEMO_PASSWORD;
     this.login();
   }
 
+  forgotPassword() {
+    this.toast.info('Escríbenos a info@spparqueaderos.co para restablecer tu contraseña', '✉️');
+  }
+
   login() {
-    this.http.post<{ token: string; userName: string }>(`${API.tenant}/auth/login`, { email: this.email, password: this.password })
-      .subscribe({
-        next: session => {
-          localStorage.setItem('sp_session', JSON.stringify(session));
-          this.router.navigateByUrl('/parkings');
-        },
-        error: () => this.error.set('Credenciales invalidas o servicio no disponible.')
-      });
+    if (this.loading()) return;
+    this.error.set('');
+    if (!this.email.trim() || !this.password) {
+      this.error.set('Ingresa tu correo y contraseña.');
+      return;
+    }
+    this.loading.set(true);
+    this.auth.login(this.email, this.password).subscribe({
+      next: session => {
+        this.toast.ok(`Bienvenido, ${session.user.fullName.split(' ')[0]}`, '👋');
+        this.leaving.set(true);
+        const target = this.route.snapshot.queryParamMap.get('volver') || this.auth.homeUrl();
+        window.setTimeout(() => this.router.navigateByUrl(target), 400);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.loading.set(false);
+        this.error.set(err.status === 0 ? 'No hay conexión con el servicio de autenticación.' : (err.error?.message || 'No se pudo iniciar sesión.'));
+      }
+    });
   }
 }
