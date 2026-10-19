@@ -63,7 +63,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" *ngIf="modalOpen()" (click)="closeModal()">
+<div class="modal-overlay" *ngIf="modalOpen()" (backdropClick)="closeModal()">
   <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="save()">
     <div class="modal-title">{{ renewing() ? 'Renovar Mensualidad' : 'Nueva Mensualidad' }}</div>
     <div style="display:grid;gap:12px">

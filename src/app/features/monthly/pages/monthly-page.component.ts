@@ -7,6 +7,7 @@ import { API } from '../../../core/api/api.config';
 import { MonthlySubscription } from '../../../core/models';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
+import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
 import {
   VEHICLE_TYPES, cleanPlate, dateKey, daysUntil, displayPlate, formatPlate, money, parseDateKey, readStorage, shortDate,
   tenantHeaders, tenantIdFromRoute, vehicleMeta, whatsappUrl, writeStorage
@@ -30,7 +31,7 @@ const DEFAULT_PRICES: Record<string, number> = { CAR: 40000, MOTORCYCLE: 20000, 
 @Component({
   selector: 'monthly-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BackdropClickDirective],
   templateUrl: './monthly-page.component.html'
 })
 export class MonthlyPageComponent {

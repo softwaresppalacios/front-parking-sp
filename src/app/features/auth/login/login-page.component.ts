@@ -7,9 +7,6 @@ import { API } from '../../../core/api/api.config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ToastService } from '../../../core/ui/toast.service';
 
-const DEMO_EMAIL = 'admin@spparqueaderos.com';
-const DEMO_PASSWORD = 'admin123';
-
 @Component({
   selector: 'login-page',
   standalone: true,
@@ -28,6 +25,7 @@ export class LoginPageComponent {
   loading = signal(false);
   leaving = signal(false);
   online = signal(true);
+  showPassword = signal(false);
 
   constructor() {
     // Cualquier respuesta HTTP (incluido 401 sin sesion) indica que el servidor esta en linea.
@@ -35,12 +33,6 @@ export class LoginPageComponent {
     if (this.route.snapshot.queryParamMap.get('expirada')) {
       this.error.set('Tu sesión expiró. Inicia sesión de nuevo.');
     }
-  }
-
-  demo() {
-    this.email = DEMO_EMAIL;
-    this.password = DEMO_PASSWORD;
-    this.login();
   }
 
   forgotPassword() {

@@ -25,10 +25,12 @@
       <span class="nav-icon">♻</span> <span class="nav-text">Mensualidades</span>
       <span class="nav-badge" *ngIf="context.expiringSubscriptions().length">{{ context.expiringSubscriptions().length }}</span>
     </a>
-    <a class="nav-item" routerLink="reportes" routerLinkActive="active"><span class="nav-icon">↗</span> <span class="nav-text">Reportes</span></a>
-    <a class="nav-item" routerLink="reportes-caja" routerLinkActive="active"><span class="nav-icon">📋</span> <span class="nav-text">Reportes de Caja</span></a>
+    <ng-container *ngIf="canManage()">
+      <a class="nav-item" routerLink="reportes" routerLinkActive="active"><span class="nav-icon">↗</span> <span class="nav-text">Reportes</span></a>
+      <a class="nav-item" routerLink="reportes-caja" routerLinkActive="active"><span class="nav-icon">📋</span> <span class="nav-text">Reportes de Caja</span></a>
+    </ng-container>
   </div>
-  <div class="sb-section">
+  <div class="sb-section" *ngIf="canManage()">
     <div class="sb-label">Sistema</div>
     <a class="nav-item" routerLink="config" routerLinkActive="active"><span class="nav-icon">⚙</span> <span class="nav-text">Configuración</span></a>
   </div>
@@ -40,6 +42,7 @@
         <div class="user-role">{{ role() }} · {{ context.tenant()?.status === 'ACTIVE' || !context.tenant() ? 'Plan activo' : 'Plan inactivo' }}</div>
       </div>
     </div>
+    <a class="sb-logout" routerLink="/cambiar-clave">🔑 Cambiar contraseña</a>
     <button type="button" class="sb-logout" (click)="logout()" [title]="'Sesión de ' + userName()">⏻ Cerrar sesión · {{ userName() }}</button>
   </div>
 </nav>

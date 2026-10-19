@@ -4,15 +4,18 @@ import { Component, WritableSignal, effect, inject, signal, untracked } from '@a
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
+import { AuthService } from '../../../core/auth/auth.service';
 import { BranchConfiguration, PricingRule, Schedule } from '../../../core/models';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
+import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
 import { dayLabel, money, normalizeAmount, tenantHeaders, tenantIdFromRoute, vehicleMeta } from '../../../core/utils';
+import { MembersCardComponent } from '../components/members-card/members-card.component';
 
 @Component({
   selector: 'config-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, MembersCardComponent, BackdropClickDirective],
   templateUrl: './config-page.component.html'
 })
 export class ConfigPageComponent {
@@ -21,6 +24,8 @@ export class ConfigPageComponent {
   private toast = inject(ToastService);
   context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
+  /** Solo el propietario gestiona los usuarios del parqueadero. */
+  isOwner = inject(AuthService).role(this.tenantId) === 'OWNER';
 
   draft = signal<BranchConfiguration | null>(null);
   savingBranch = signal(false);

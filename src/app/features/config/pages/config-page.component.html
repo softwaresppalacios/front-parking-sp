@@ -48,6 +48,8 @@
     </div>
 
     <div>
+      <members-card *ngIf="isOwner" [tenantId]="tenantId"></members-card>
+
       <div class="card mb16">
         <div class="card-title">Horario de Atención</div>
         <div class="hor-row" *ngFor="let day of config.schedules; let i = index" [class.closed]="day.closed">
@@ -81,7 +83,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" *ngIf="editing() as rule" (click)="editing.set(null)">
+<div class="modal-overlay" *ngIf="editing() as rule" (backdropClick)="editing.set(null)">
   <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="saveRule()">
     <div class="modal-title">Editar tarifa — {{ meta(rule.vehicleType).emoji }} {{ rule.displayName }}</div>
     <div style="display:grid;gap:12px">

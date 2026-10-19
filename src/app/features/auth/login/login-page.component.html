@@ -27,12 +27,14 @@
     <label class="lg-lbl" for="lEmail">Correo electrónico</label>
     <input type="email" class="lg-inp" id="lEmail" name="email" placeholder="admin@parqueadero.co" [(ngModel)]="email" autocomplete="username">
     <label class="lg-lbl" for="lPass">Contraseña</label>
-    <input type="password" class="lg-inp" id="lPass" name="password" placeholder="••••••••" [(ngModel)]="password" autocomplete="current-password">
+    <div class="lg-pass">
+      <input [type]="showPassword() ? 'text' : 'password'" class="lg-inp" id="lPass" name="password" placeholder="••••••••" [(ngModel)]="password" autocomplete="current-password">
+      <button type="button" class="lg-eye" (click)="showPassword.set(!showPassword())" [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Ver contraseña'" [title]="showPassword() ? 'Ocultar contraseña' : 'Ver contraseña'">{{ showPassword() ? '🙈' : '👁' }}</button>
+    </div>
     <div class="lg-forgot">
       <span role="button" tabindex="0" (click)="forgotPassword()" (keydown.enter)="forgotPassword()">¿Olvidaste tu contraseña?</span>
     </div>
     <button type="submit" class="lg-btn" [disabled]="loading()">🔐 &nbsp;{{ loading() ? 'INGRESANDO...' : 'INGRESAR AL SISTEMA' }}</button>
-    <button type="button" class="lg-demo" (click)="demo()" [disabled]="loading()">Entrar con la cuenta demo →</button>
     <div class="lg-error" *ngIf="error()">{{ error() }}</div>
     <div class="lg-divider"></div>
     <div class="lg-status">

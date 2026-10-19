@@ -8,12 +8,13 @@ import { CashClosure, CashSummary, Ticket } from '../../../core/models';
 import { LocalHistoryService } from '../../../core/state/local-history.service';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
+import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
 import { dateKey, hhmm, money, parseDateKey, sessionUserName, shortDate, shortDay, tenantHeaders, tenantIdFromRoute, vehicleMeta } from '../../../core/utils';
 
 @Component({
   selector: 'cash-page',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, BackdropClickDirective],
   templateUrl: './cash-page.component.html'
 })
 export class CashPageComponent {

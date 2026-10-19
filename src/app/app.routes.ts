@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
-import { authGuard, guestGuard, tenantAccessGuard } from './core/auth/auth.guards';
+import { authGuard, guestGuard, manageGuard, sessionGuard, tenantAccessGuard } from './core/auth/auth.guards';
+import { ChangePasswordPageComponent } from './features/auth/change-password/change-password-page.component';
 import { LoginPageComponent } from './features/auth/login/login-page.component';
 import { RegisterPageComponent } from './features/auth/register/register-page.component';
 import { CashPageComponent } from './features/cash/pages/cash-page.component';
@@ -17,6 +18,7 @@ export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   { path: 'login', component: LoginPageComponent, canActivate: [guestGuard] },
   { path: 'registro', component: RegisterPageComponent, canActivate: [guestGuard] },
+  { path: 'cambiar-clave', component: ChangePasswordPageComponent, canActivate: [sessionGuard] },
   { path: 'parkings', component: TenantBoardComponent, canActivate: [authGuard] },
   {
     path: 'parking/:tenantUuid',
@@ -29,9 +31,9 @@ export const routes: Routes = [
       { path: 'salida', component: ExitPageComponent, data: { title: 'Registrar Salida' } },
       { path: 'caja', component: CashPageComponent, data: { title: 'Caja del Día' } },
       { path: 'mensualidades', component: MonthlyPageComponent, data: { title: 'Mensualidades' } },
-      { path: 'reportes', component: ReportsPageComponent, data: { title: 'Reportes' } },
-      { path: 'reportes-caja', component: CashReportsPageComponent, data: { title: 'Reportes de Caja' } },
-      { path: 'config', component: ConfigPageComponent, data: { title: 'Configuración' } },
+      { path: 'reportes', component: ReportsPageComponent, canActivate: [manageGuard], data: { title: 'Reportes' } },
+      { path: 'reportes-caja', component: CashReportsPageComponent, canActivate: [manageGuard], data: { title: 'Reportes de Caja' } },
+      { path: 'config', component: ConfigPageComponent, canActivate: [manageGuard], data: { title: 'Configuración' } },
       { path: 'config/:section', redirectTo: 'config' }
     ]
   },

@@ -17,6 +17,7 @@ export class ParkingSidebarComponent {
   initials = initials;
   userName = computed(() => this.auth.user()?.fullName || 'Usuario');
   role = computed(() => roleLabel(this.auth.role(this.context.tenantId())));
+  canManage = computed(() => this.auth.canManage(this.context.tenantId()));
 
   logout() {
     this.auth.logout();

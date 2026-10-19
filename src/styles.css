@@ -66,6 +66,10 @@ a{color:inherit;}
 }
 .lg-inp:focus{border-color:rgba(220,38,38,0.5);box-shadow:0 0 0 3px rgba(220,38,38,0.08);background:#fff;}
 .lg-inp::placeholder{color:#CBD5E1;}
+.lg-pass{position:relative;}
+.lg-pass .lg-inp{padding-right:44px;}
+.lg-eye{position:absolute;right:6px;top:5px;width:34px;height:34px;border:none;background:transparent;border-radius:7px;cursor:pointer;font-size:15px;color:#94A3B8;}
+.lg-eye:hover{background:#F1F5F9;color:#0F172A;}
 .lg-forgot{display:flex;justify-content:flex-end;margin-bottom:20px;margin-top:-6px;}
 .lg-forgot span{font-size:11px;color:#DC2626;font-family:var(--fm);cursor:pointer;}
 .lg-btn{

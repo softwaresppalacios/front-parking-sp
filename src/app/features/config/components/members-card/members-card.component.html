@@ -1,0 +1,94 @@
+<div class="card mb16">
+  <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+    <span>Usuarios</span>
+    <button class="btn btn-ghost sm" type="button" (click)="openAdd()">+ Agregar usuario</button>
+  </div>
+  <div class="loading-note" *ngIf="loading()">Cargando usuarios...</div>
+  <div class="tbl-wrap" *ngIf="!loading()">
+    <table class="tbl">
+      <thead><tr><th>Usuario</th><th>Rol</th><th></th></tr></thead>
+      <tbody>
+        <tr *ngFor="let member of members()">
+          <td>
+            <div style="font-weight:600">{{ member.fullName }} <span *ngIf="isMe(member)" style="color:var(--text3);font-weight:400">(tú)</span></div>
+            <div style="font-size:11px;color:var(--text3)">{{ member.email }}</div>
+            <span class="chip amber sm" style="margin-top:4px" *ngIf="member.mustChangePassword">Clave temporal pendiente</span>
+          </td>
+          <td>
+            <span class="chip blue sm" *ngIf="member.role === 'OWNER'; else roleSelect">{{ roleLabel(member.role) }}</span>
+            <ng-template #roleSelect>
+              <select class="fs" [attr.aria-label]="'Rol de ' + member.fullName" [ngModel]="member.role" (ngModelChange)="changeRole(member, $event)">
+                <option value="ADMIN">Admin</option>
+                <option value="CASHIER">Cajero</option>
+              </select>
+            </ng-template>
+          </td>
+          <td style="white-space:nowrap;text-align:right">
+            <ng-container *ngIf="member.role !== 'OWNER'">
+              <button class="btn btn-ghost sm" type="button" title="Asignar nueva contraseña temporal" (click)="resetPassword(member)">🔑</button>
+              <button class="btn btn-ghost sm" type="button" title="Quitar acceso" style="margin-left:4px" (click)="remove(member)">✕</button>
+            </ng-container>
+          </td>
+        </tr>
+        <tr *ngIf="!members().length"><td colspan="3" class="empty">No se pudieron cargar los usuarios</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="font-size:11px;color:var(--text3);margin-top:8px">
+    Admin: todo excepto gestionar usuarios. Cajero: entrada, salida, caja y mensualidades.
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="form() as data" (backdropClick)="form.set(null)">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="add()">
+    <div class="modal-title">Agregar usuario</div>
+    <div style="display:grid;gap:12px">
+      <div class="fg"><label class="fl" for="mName">Nombre completo <span>*</span></label>
+        <input class="fi" id="mName" name="fullName" autocomplete="off" [ngModel]="data.fullName" (ngModelChange)="patchForm({ fullName: $event })"></div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="mEmail">Correo <span>*</span></label>
+          <input class="fi" id="mEmail" name="email" type="email" autocomplete="off" [ngModel]="data.email" (ngModelChange)="patchForm({ email: $event })"></div>
+        <div class="fg"><label class="fl" for="mRole">Rol <span>*</span></label>
+          <select class="fs" id="mRole" name="role" [ngModel]="data.role" (ngModelChange)="patchForm({ role: $event })">
+            <option value="CASHIER">Cajero</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label class="fl" for="mPass">Contraseña temporal <span>*</span></label>
+        <div style="display:flex;gap:8px">
+          <input class="fi" id="mPass" name="temporaryPassword" autocomplete="off" style="font-family:var(--fm)" [ngModel]="data.temporaryPassword" (ngModelChange)="patchForm({ temporaryPassword: $event })">
+          <button class="btn btn-ghost" type="button" (click)="regenerate()">Generar</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3)">
+        El usuario deberá cambiarla al ingresar por primera vez. Si el correo ya tiene cuenta en SP Parqueaderos, solo se le da acceso y conserva su contraseña.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="form.set(null)">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="saving()">✓ {{ saving() ? 'Guardando...' : 'Agregar usuario' }}</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal-overlay" *ngIf="credentials() as data" (backdropClick)="credentials.set(null)">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-title">✓ {{ data.title }}</div>
+    <div style="display:grid;gap:10px">
+      <div style="font-size:13px">Entrega estos datos de acceso a <b>{{ data.fullName }}</b>:</div>
+      <div class="sub-box" style="font-family:var(--fm);font-size:13px;line-height:1.8">
+        <div>Usuario: <b>{{ data.email }}</b></div>
+        <div *ngIf="data.password">Contraseña temporal: <b>{{ data.password }}</b></div>
+        <div *ngIf="!data.password">Ya tenía cuenta: ingresa con su contraseña actual.</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3)" *ngIf="data.password">
+        Esta contraseña no se volverá a mostrar. Al ingresar, el sistema le pedirá crear una propia.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="copyCredentials()">📋 Copiar</button>
+      <button type="button" class="btn btn-g" (click)="credentials.set(null)">Listo</button>
+    </div>
+  </div>
+</div>

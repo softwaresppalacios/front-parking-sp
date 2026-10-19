@@ -5,7 +5,7 @@ import { Observable, catchError, map, of, tap } from 'rxjs';
 import { API } from '../api/api.config';
 import { readStorage, writeStorage } from '../utils';
 
-export type SessionUser = { uuid: string; fullName: string; email: string };
+export type SessionUser = { uuid: string; fullName: string; email: string; mustChangePassword?: boolean };
 export type TenantAccess = { uuid: string; name: string; role: 'OWNER' | 'ADMIN' | 'CASHIER'; status: string; planName: string; branchLimit: number; branchCount: number };
 export type Session = { token: string; expiresAt: string; user: SessionUser; tenants: TenantAccess[] };
 export type RegisterData = { fullName: string; email: string; password: string; parkingName: string; branchAddress?: string };
@@ -23,6 +23,8 @@ export class AuthService {
   user = computed(() => this.session()?.user || null);
   tenants = computed(() => this.session()?.tenants || []);
   isLoggedIn = computed(() => !!this.session());
+  /** La cuenta tiene una clave temporal asignada por el propietario. */
+  mustChangePassword = computed(() => !!this.session()?.user.mustChangePassword);
 
   login(email: string, password: string): Observable<Session> {
     return this.http.post<Session>(`${API.tenant}/auth/login`, { email: email.trim(), password }).pipe(tap(session => this.store(session)));
@@ -59,6 +61,16 @@ export class AuthService {
     );
   }
 
+  /** El servidor cierra las demas sesiones; la actual sigue valida. */
+  changePassword(currentPassword: string, newPassword: string): Observable<void> {
+    return this.http.post<void>(`${API.tenant}/auth/change-password`, { currentPassword, newPassword }).pipe(
+      tap(() => {
+        const current = this.session();
+        if (current) this.store({ ...current, user: { ...current.user, mustChangePassword: false } });
+      })
+    );
+  }
+
   logout(): void {
     const token = this.session()?.token;
     this.clear();
@@ -82,8 +94,15 @@ export class AuthService {
     return this.tenants().find(tenant => tenant.uuid === uuid)?.role || null;
   }
 
+  /** Propietario y admin gestionan reportes y configuracion; el cajero solo opera. */
+  canManage(uuid: string) {
+    const role = this.role(uuid);
+    return role === 'OWNER' || role === 'ADMIN';
+  }
+
   /** Ruta de inicio despues de entrar: el dashboard si solo tiene un parqueadero. */
   homeUrl() {
+    if (this.mustChangePassword()) return '/cambiar-clave';
     const tenants = this.tenants();
     return tenants.length === 1 ? `/parking/${tenants[0].uuid}/dashboard` : '/parkings';
   }

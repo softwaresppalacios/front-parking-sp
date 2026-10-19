@@ -64,7 +64,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" *ngIf="modalOpen()" (click)="modalOpen.set(false)">
+<div class="modal-overlay" *ngIf="modalOpen()" (backdropClick)="modalOpen.set(false)">
   <div class="modal" (click)="$event.stopPropagation()">
     <div class="modal-title">◈ Cierre de Caja — {{ todayLabel() }}</div>
     <div class="modal-box">
