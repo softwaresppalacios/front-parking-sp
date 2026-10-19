@@ -30,7 +30,8 @@ export class LoginPageComponent {
   online = signal(true);
 
   constructor() {
-    this.http.get(`${API.tenant}/tenants`).subscribe({ next: () => this.online.set(true), error: () => this.online.set(false) });
+    // Cualquier respuesta HTTP (incluido 401 sin sesion) indica que el servidor esta en linea.
+    this.http.get(`${API.tenant}/auth/me`).subscribe({ next: () => this.online.set(true), error: error => this.online.set(error.status !== 0) });
     if (this.route.snapshot.queryParamMap.get('expirada')) {
       this.error.set('Tu sesión expiró. Inicia sesión de nuevo.');
     }
