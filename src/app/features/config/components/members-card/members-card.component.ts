@@ -6,6 +6,7 @@ import { API } from '../../../../core/api/api.config';
 import { AuthService, roleLabel } from '../../../../core/auth/auth.service';
 import { ToastService } from '../../../../core/ui/toast.service';
 import { BackdropClickDirective } from '../../../../shared/directives/backdrop-click.directive';
+import { apiErrorMessage } from '../../../../core/utils';
 
 type MemberRole = 'OWNER' | 'ADMIN' | 'CASHIER';
 type Member = {
@@ -161,7 +162,7 @@ export class MembersCardComponent implements OnInit {
 
   private fail(err: HttpErrorResponse, fallback: string) {
     this.saving.set(false);
-    this.toast.err(err.error?.message || fallback);
+    this.toast.err(apiErrorMessage(err, fallback));
   }
 
   private url() {

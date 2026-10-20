@@ -32,14 +32,14 @@
         </div>
         <div class="info-line">
           <ng-container *ngIf="ticket.keySlotCode">🔑 Tablero llaves: <span class="amber">{{ ticket.keySlotCode }}</span> &nbsp;·&nbsp; </ng-container>
-          <ng-container *ngIf="ticket.helmetLockerCode">⛑ Casillero casco: <span class="amber">{{ ticket.helmetLockerCode }}</span> &nbsp;·&nbsp; </ng-container>
+          <ng-container *ngIf="helmets(ticket).length">⛑ {{ helmets(ticket).length > 1 ? 'Casilleros casco' : 'Casillero casco' }}: <span class="amber">{{ helmets(ticket).join(', ') }}</span> &nbsp;·&nbsp; </ng-container>
           📍 Slot: <span class="red">{{ ticket.spaceCode || 'Sin asignar' }}</span>
         </div>
         <div class="pay-calc">
           <ng-container *ngIf="!ticket.monthlySubscription; else monthlyCalc">
-            <div class="calc-row"><span>Tarifa por hora</span><span>{{ rateText() }}</span></div>
+            <div class="calc-row"><span>Tarifa</span><span>{{ rateText() }}</span></div>
             <div class="calc-row"><span>Tiempo</span><span>{{ elapsedText() }}</span></div>
-            <div class="calc-row"><span>{{ extraLabel() }}</span><span>{{ money(breakdown().extra) }}</span></div>
+            <div class="calc-row" *ngFor="let row of breakdown()"><span>{{ row.label }}</span><span>{{ money(row.amount) }}</span></div>
             <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(total()) }}</span></div>
           </ng-container>
           <ng-template #monthlyCalc>
@@ -50,7 +50,11 @@
         </div>
         <div class="pay-methods" *ngIf="!ticket.monthlySubscription">
           <div class="pay-method" [class.selected]="paymentMethod() === 'CASH'" (click)="paymentMethod.set('CASH')"><span class="pay-method-icon">💵</span>Efectivo</div>
-          <div class="pay-method" [class.selected]="paymentMethod() === 'DIGITAL'" (click)="paymentMethod.set('DIGITAL')"><span class="pay-method-icon">📱</span>Pago Digital</div>
+          <div class="pay-method" [class.selected]="paymentMethod() === 'ONLINE'" (click)="paymentMethod.set('ONLINE')"><span class="pay-method-icon">🌐</span>En línea</div>
+        </div>
+        <div class="fg" style="margin-top:10px" *ngIf="!ticket.monthlySubscription && paymentMethod() === 'ONLINE'">
+          <label class="fl" for="xRef">Referencia del pago <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+          <input class="fi" id="xRef" name="onlineReference" maxlength="80" placeholder="Nequi, Daviplata, transferencia..." [(ngModel)]="onlineReference">
         </div>
         <button class="btn-primary green btn-block" style="margin-top:14px" (click)="confirm()" [disabled]="paying()">
           ↑ {{ paying() ? 'Registrando...' : (ticket.monthlySubscription ? 'Confirmar Salida' : 'Confirmar Salida y Cobro') }}

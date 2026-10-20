@@ -4,12 +4,12 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
-import { CashSummary, Ticket } from '../../../core/models';
+import { Ticket } from '../../../core/models';
 import { LocalHistoryService, StoredTicket } from '../../../core/state/local-history.service';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
 import {
-  compactMoney, dateKey, displayPlate, durationText, hhmm, minutesBetween, money, parseDateKey, shortDate, tenantHeaders, tenantIdFromRoute, vehicleMeta
+  compactMoney, dateKey, displayPlate, durationText, hhmm, minutesBetween, money, parseDateKey, paymentMethodMeta, shortDate, tenantHeaders, tenantIdFromRoute, vehicleMeta
 } from '../../../core/utils';
 
 type Filters = { from: string; to: string; type: string };
@@ -31,12 +31,6 @@ export class ReportsPageComponent {
   form: Filters = this.defaultFilters();
   applied = signal<Filters>(this.defaultFilters());
   tickets = signal<StoredTicket[]>([]);
-
-  private paymentMethods = computed(() => {
-    const methods = new Map<string, string>();
-    this.history.closures(this.tenantId).forEach(closure => closure.movements.forEach(row => methods.set(`${row.plate}|${row.exit}`, row.method)));
-    return methods;
-  });
 
   inRange = computed(() => {
     const { from, to, type } = this.applied();
@@ -122,18 +116,6 @@ export class ReportsPageComponent {
       next: tickets => { this.history.mergeTickets(this.tenantId, tickets); refresh(); },
       error: () => undefined
     });
-    // Los pagos de hoy aportan el metodo de pago de los tickets cerrados hoy.
-    this.http.get<CashSummary>(`${API.payment}/cash-sessions/current`, headers).subscribe({
-      next: summary => {
-        const byUuid = new Map(this.history.tickets(this.tenantId).map(ticket => [ticket.uuid, ticket]));
-        (summary.recentMovements || []).forEach(movement => {
-          const ticket = byUuid.get(movement.ticketUuid);
-          if (ticket && !ticket.paymentMethod) this.history.recordPayment(this.tenantId, ticket, movement.method);
-        });
-        refresh();
-      },
-      error: () => undefined
-    });
   }
 
   generate() {
@@ -156,11 +138,9 @@ export class ReportsPageComponent {
   }
 
   method(ticket: StoredTicket) {
-    const method = ticket.paymentMethod || this.paymentMethods().get(`${displayPlate(ticket.plate)}|${hhmm(ticket.checkedOutAt)}`);
     if (ticket.monthlySubscription) return { label: 'Mensual', cls: 'amber' };
-    if (method === 'DIGITAL') return { label: 'Digital', cls: 'blue' };
-    if (method === 'CASH') return { label: 'Efectivo', cls: 'green' };
-    return { label: '—', cls: '' };
+    const { label, cls } = paymentMethodMeta(ticket.paymentMethod);
+    return { label, cls };
   }
 
   duration(ticket: Ticket) { return durationText(minutesBetween(ticket.checkedInAt, ticket.checkedOutAt || new Date())); }

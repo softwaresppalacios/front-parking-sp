@@ -10,7 +10,7 @@
       <div class="stat-label">Ingresos hoy</div>
       <div class="stat-value">{{ money(cash()?.todayRevenue || summary()?.todayRevenue || 0) }}</div>
       <div class="stat-sub green" *ngIf="revenueVsYesterday() as delta; else paymentsCount">{{ delta.text }}</div>
-      <ng-template #paymentsCount><div class="stat-sub green">{{ cash()?.movements || 0 }} pagos registrados</div></ng-template>
+      <ng-template #paymentsCount><div class="stat-sub green">{{ cash()?.payments || 0 }} pagos registrados</div></ng-template>
     </div>
     <div class="stat-card blue">
       <div class="stat-label">Movimientos hoy</div>
@@ -104,7 +104,7 @@
             <td><span class="tbadge {{ meta(ticket.vehicleType).cls }}">{{ meta(ticket.vehicleType).emoji }} {{ meta(ticket.vehicleType).short }}</span></td>
             <td class="td-mono">{{ hhmm(ticket.checkedInAt) }}</td>
             <td class="td-mono red">{{ ticket.spaceCode || '—' }}</td>
-            <td class="td-mono amber">{{ ticket.keySlotCode || ticket.helmetLockerCode || '—' }}</td>
+            <td class="td-mono amber">{{ ticket.keySlotCode || helmets(ticket).join(', ') || '—' }}</td>
             <td><span class="sbadge {{ status(ticket) }}">{{ status(ticket) }}</span></td>
             <td class="td-mono sm muted">{{ elapsed(ticket) }}</td>
             <td class="td-money">{{ value(ticket) }}</td>

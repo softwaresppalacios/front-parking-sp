@@ -7,6 +7,7 @@ import { API } from '../../../core/api/api.config';
 import { AuthService, TenantAccess, roleLabel } from '../../../core/auth/auth.service';
 import { Tenant } from '../../../core/models';
 import { ToastService } from '../../../core/ui/toast.service';
+import { apiErrorMessage } from '../../../core/utils';
 
 @Component({
   selector: 'tenant-board',
@@ -41,7 +42,7 @@ export class TenantBoardComponent {
           this.auth.refresh().subscribe();
         },
         error: err => {
-          this.toast.err(err?.error?.message || 'No se pudo crear el parqueadero');
+          this.toast.err(apiErrorMessage(err, 'No se pudo crear el parqueadero'));
           this.creating.set(false);
         }
       });

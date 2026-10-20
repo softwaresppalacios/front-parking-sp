@@ -22,15 +22,33 @@
               <input class="fi" id="inputCelular" name="phone" placeholder="300 000 0000" inputmode="tel" [(ngModel)]="phone">
             </div>
           </div>
+          <div class="form-grid-2">
+            <div class="fg">
+              <label class="fl" for="inputNombre">Nombre conductor <span class="fl-opt">(opcional)</span></label>
+              <input class="fi" id="inputNombre" name="driverName" maxlength="120" placeholder="Juan Pérez" autocomplete="off" [(ngModel)]="driverName">
+            </div>
+            <div class="fg">
+              <label class="fl" for="inputCedula">Cédula <span class="fl-opt">(opcional)</span></label>
+              <input class="fi" id="inputCedula" name="driverDocument" maxlength="20" placeholder="1080000000" inputmode="numeric" autocomplete="off" [(ngModel)]="driverDocument">
+            </div>
+          </div>
           <div class="divider"></div>
 
           <div class="form-grid-2" *ngIf="context.manageResources(); else unmanaged">
             <div class="fg">
-              <label class="fl">Asignar Slot <span>*</span></label>
+              <label class="fl">Asignar Slot <span>*</span>
+                <span *ngIf="vehicleType && spaces().length" style="text-transform:none;letter-spacing:0;color:var(--text3)"> · {{ freeSpaces() }} libres de {{ spaces().length }}</span>
+              </label>
               <div class="slot-picker">
                 <div class="sp-item" *ngFor="let item of spaces()" [class.disabled]="isTaken(item)" [class.selected]="selectedSpace === item.code"
                      [title]="isTaken(item) ? 'Ocupado' + (item.assignedPlate ? ' · ' + item.assignedPlate : '') : 'Libre'" (click)="pick('space', item)">{{ item.code }}</div>
                 <div class="form-hint" *ngIf="!vehicleType">Seleccione el tipo de vehículo</div>
+                <div class="form-hint" *ngIf="vehicleType && board() && !spaces().length" style="color:var(--red)">
+                  Este parqueadero no tiene espacios de {{ spaceKind() }} configurados.
+                  <a *ngIf="canManage" routerLink="../config" style="color:var(--red);font-weight:600">Configurar capacidad →</a>
+                  <span *ngIf="!canManage">Pide al administrador que defina la capacidad en Configuración.</span>
+                </div>
+                <div class="form-hint" *ngIf="vehicleType && spaces().length && !freeSpaces()" style="color:var(--red)">Todos los espacios de {{ spaceKind() }} están ocupados.</div>
               </div>
             </div>
             <div class="fg" *ngIf="showsKeySlots()">
@@ -42,9 +60,9 @@
               </div>
             </div>
             <div class="fg" *ngIf="showsHelmetLockers()">
-              <label class="fl">Casillero de casco</label>
+              <label class="fl">{{ maxHelmets() > 1 ? 'Casilleros de casco · hasta 2' : 'Casillero de casco' }}</label>
               <div class="slot-picker">
-                <div class="sp-item" *ngFor="let item of helmetLockers()" [class.disabled]="isTaken(item)" [class.selected]="selectedHelmetLocker === item.code"
+                <div class="sp-item" *ngFor="let item of helmetLockers()" [class.disabled]="isTaken(item)" [class.selected]="selectedHelmetLockers.includes(item.code)"
                      (click)="pick('helmet', item)">{{ item.code }}</div>
                 <div class="form-hint" *ngIf="!helmetLockers().length">Sin casilleros configurados</div>
               </div>
@@ -79,28 +97,43 @@
           <div class="t-row"><span class="t-key">Hora entrada</span><span class="t-val">{{ hora() }}</span></div>
           <div class="t-row"><span class="t-key">Slot</span><span class="t-val">{{ selectedSpace || '—' }}</span></div>
           <div class="t-row" *ngIf="!showsHelmetLockers()"><span class="t-key">Tablero llaves</span><span class="t-val">{{ selectedKeySlot || '—' }}</span></div>
-          <div class="t-row" *ngIf="showsHelmetLockers()"><span class="t-key">Casillero casco</span><span class="t-val">{{ selectedHelmetLocker || '—' }}</span></div>
+          <div class="t-row" *ngIf="showsHelmetLockers()"><span class="t-key">{{ selectedHelmetLockers.length > 1 ? 'Casilleros casco' : 'Casillero casco' }}</span><span class="t-val">{{ helmetText() }}</span></div>
           <div class="t-row" *ngIf="monthlyUuid"><span class="t-key">Modalidad</span><span class="t-val" style="color:var(--amber)">⭐ Mensualidad</span></div>
           <div class="t-qr"><div class="qr-ph">▦</div><div class="t-code">{{ ticketCode() }}</div></div>
         </div>
       </div>
       <div class="card">
         <div class="card-title">WhatsApp al conductor</div>
-        <label class="toggle-row" style="margin-bottom:8px">
-          <span style="font-size:11px;color:var(--text3)">Se enviará automáticamente al guardar</span>
+        <label class="toggle-row" style="margin-bottom:8px" *ngIf="whatsappEnabled(); else whatsappPaused">
+          <span style="font-size:11px;color:var(--text3)">Se envía automáticamente al guardar, desde la línea del parqueadero</span>
           <span class="toggle"><input type="checkbox" [(ngModel)]="sendWhatsapp"><span class="tog-slider"></span></span>
         </label>
+        <ng-template #whatsappPaused>
+          <div class="chip amber" style="margin-bottom:8px;white-space:normal">⏸ Envío automático en pausa: la plantilla está en revisión en Meta</div>
+        </ng-template>
         <div class="wa-box">
-          🅿️ *SP Parqueaderos*<br>
+          Este es tu ticket de parqueadero<br><br>
+          ID ticket: <span>{{ ticketCode() }}</span><br>
+          Parqueadero: <span>{{ context.branch()?.name || context.parkingName() }}</span><br>
+          Nombre: <span>{{ driverName || '—' }}</span><br>
+          Cedula: <span>{{ driverDocument || '—' }}</span><br>
+          Lugar: <span class="red">{{ selectedSpace || '—' }}</span><br>
           Placa: <span class="red">{{ plate || '—' }}</span><br>
-          Slot: <span>{{ selectedSpace || '—' }}</span><br>
-          Llaves: <span>{{ keyText() }}</span><br>
-          Hora: <span>{{ hora() }}</span><br>
-          <span class="muted">Guarde este mensaje como comprobante.</span>
+          Fecha y hora: <span>{{ fecha() }} {{ hora() }}</span><br><br>
+          <span class="muted">SP parqueaderos 🚗🅿️</span>
         </div>
-        <button type="button" class="btn btn-g btn-wa" *ngIf="lastTicket() as last" (click)="resendWhatsapp()">
-          📲 Reenviar ticket de {{ last.ticket.plate }}
-        </button>
+        <ng-container *ngIf="lastTicket() as last">
+          <div class="form-hint" style="margin-top:10px" [style.color]="last.whatsapp?.sent ? 'var(--green)' : last.whatsapp ? 'var(--red)' : 'var(--text3)'">
+            {{ last.ticket.plate }}:
+            {{ last.whatsapp?.sent ? '✓ ticket enviado por WhatsApp' : last.whatsapp ? '✕ no se envió — ' + (last.whatsapp.error || 'error desconocido') : (whatsappEnabled() ? 'no se envió (envío desactivado)' : 'no se envió (envío en pausa)') }}
+          </div>
+          <button type="button" class="btn btn-g btn-wa" *ngIf="whatsappEnabled()" (click)="resendWhatsapp()" [disabled]="resending()">
+            📲 {{ resending() ? 'Enviando...' : (last.whatsapp?.sent ? 'Reenviar' : 'Enviar') + ' ticket de ' + last.ticket.plate }}
+          </button>
+          <button type="button" class="btn btn-ghost" style="width:100%;margin-top:6px" *ngIf="!last.whatsapp?.sent" (click)="openWhatsappWeb()">
+            Abrir en WhatsApp Web
+          </button>
+        </ng-container>
       </div>
     </div>
   </div>

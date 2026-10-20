@@ -9,7 +9,7 @@ import { BranchConfiguration, PricingRule, Schedule } from '../../../core/models
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
 import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
-import { dayLabel, money, normalizeAmount, tenantHeaders, tenantIdFromRoute, vehicleMeta } from '../../../core/utils';
+import { apiErrorMessage, dayLabel, estimateAmount, money, normalizeAmount, tenantHeaders, tenantIdFromRoute, vehicleMeta } from '../../../core/utils';
 import { MembersCardComponent } from '../components/members-card/members-card.component';
 
 @Component({
@@ -88,7 +88,11 @@ export class ConfigPageComponent {
     const rule = this.editing();
     if (!rule) return;
     if (rule.pricingModel === 'FLAT' && !(Number(rule.flatAmount) > 0)) { this.toast.err('Ingrese el valor de la tarifa plana'); return; }
-    if (rule.pricingModel === 'PROGRESSIVE' && !(Number(rule.hourlyAmount) > 0)) { this.toast.err('Ingrese el valor por hora'); return; }
+    if (rule.pricingModel === 'PROGRESSIVE') {
+      if ((normalizeAmount(rule.hourlyAmount) ?? 0) <= 0) { this.toast.err('Ingrese el valor de la primera hora'); return; }
+      const additional = normalizeAmount(rule.additionalHourAmount);
+      if (additional === null || additional < 0) { this.toast.err('Ingrese el valor de la hora adicional'); return; }
+    }
     this.savingRule.set(true);
     this.http.put<PricingRule>(`${API.pricing}/pricing/rules/${rule.vehicleType}`, {
       vehicleType: rule.vehicleType,
@@ -97,8 +101,6 @@ export class ConfigPageComponent {
       flatAmount: normalizeAmount(rule.flatAmount),
       hourlyAmount: normalizeAmount(rule.hourlyAmount),
       additionalHourAmount: normalizeAmount(rule.additionalHourAmount) ?? normalizeAmount(rule.hourlyAmount),
-      fractionAmount: normalizeAmount(rule.fractionAmount) ?? 0,
-      fractionMinutes: Number(rule.fractionMinutes) || 30,
       dayAmount: normalizeAmount(rule.dayAmount),
       applyDailyCap: !!rule.applyDailyCap,
       rateIncreaseAfterHours: normalizeAmount(rule.rateIncreaseAfterHours),
@@ -114,7 +116,7 @@ export class ConfigPageComponent {
       },
       error: err => {
         this.savingRule.set(false);
-        this.toast.err(err?.error?.message || 'No se pudo guardar la tarifa');
+        this.toast.err(apiErrorMessage(err, 'No se pudo guardar la tarifa'));
       }
     });
   }
@@ -123,8 +125,21 @@ export class ConfigPageComponent {
     this.editing.update(rule => rule ? { ...rule, ...patch } : rule);
   }
 
-  fractionText(rule: PricingRule) {
-    return rule.pricingModel === 'FLAT' ? 'Tarifa plana' : `${rule.fractionMinutes}min · ${money(rule.fractionAmount)}`;
+  /** Valor de un minuto despues de la primera hora, con decimales (ej. $33,33). */
+  minuteText(rule: PricingRule) {
+    const value = (Number(rule.additionalHourAmount ?? rule.hourlyAmount) || 0) / 60;
+    return '$' + value.toLocaleString('es-CO', { maximumFractionDigits: 2 });
+  }
+
+  /** Ejemplos de cobro con la tarifa en edicion, para ver el efecto antes de guardar. */
+  examples(rule: PricingRule) {
+    const cases = [
+      { minutes: 45, label: '45 min' },
+      { minutes: 80, label: '1 h 20 min' },
+      { minutes: 150, label: '2 h 30 min' },
+      { minutes: 300, label: '5 h' }
+    ];
+    return cases.map(item => ({ label: item.label, amount: estimateAmount(rule, item.minutes) }));
   }
 
   plan() {
@@ -167,7 +182,7 @@ export class ConfigPageComponent {
       },
       error: err => {
         state.set(false);
-        this.toast.err(err?.error?.message || 'No se pudo guardar la configuración');
+        this.toast.err(apiErrorMessage(err, 'No se pudo guardar la configuración'));
       }
     });
   }

@@ -74,9 +74,11 @@
       <div class="form-grid-2">
         <div class="fg"><label class="fl">Celular <span>*</span></label><input class="fi" name="phone" placeholder="310 000 0000" inputmode="tel" [(ngModel)]="form.customerPhone"></div>
         <div class="fg"><label class="fl">Método de pago</label>
-          <select class="fs" name="method" [(ngModel)]="form.paymentMethod"><option value="CASH">💵 Efectivo</option><option value="DIGITAL">📱 Pago digital</option></select>
+          <select class="fs" name="method" [(ngModel)]="form.paymentMethod"><option value="CASH">💵 Efectivo</option><option value="ONLINE">🌐 En línea</option></select>
         </div>
       </div>
+      <div class="fg" *ngIf="form.paymentMethod === 'ONLINE'"><label class="fl" for="mRef">Referencia del pago <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <input class="fi" id="mRef" name="onlineReference" maxlength="80" placeholder="Nequi, Daviplata, transferencia..." [(ngModel)]="form.onlineReference"></div>
       <div class="form-grid-2">
         <div class="fg"><label class="fl">Placa <span>*</span></label><input class="fi" name="plate" placeholder="ABC 123" style="text-transform:uppercase" maxlength="8" [ngModel]="form.plate" (ngModelChange)="onPlateChange($event)"></div>
         <div class="fg"><label class="fl">Tipo <span>*</span></label>

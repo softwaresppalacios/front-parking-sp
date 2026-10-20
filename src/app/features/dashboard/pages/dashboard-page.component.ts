@@ -3,11 +3,11 @@ import { HttpClient } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { API } from '../../../core/api/api.config';
-import { CashSummary, DashboardSummary, Resource, ResourceBoard, Ticket } from '../../../core/models';
+import { DashboardSummary, Resource, ResourceBoard, Ticket, TodayCashSummary } from '../../../core/models';
 import { LocalHistoryService } from '../../../core/state/local-history.service';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import {
-  dateKey, displayPlate, durationText, estimateAmount, hhmm, minutesBetween, money, tenantHeaders, tenantIdFromRoute, vehicleMeta
+  dateKey, displayPlate, durationText, estimateAmount, helmetLockersOf, hhmm, minutesBetween, money, tenantHeaders, tenantIdFromRoute, vehicleMeta
 } from '../../../core/utils';
 
 type SlotView = { code: string; state: 'libre' | 'ocupado' | 'reservado'; icon: string; plate: string };
@@ -29,7 +29,7 @@ export class DashboardPageComponent {
   summary = signal<DashboardSummary | null>(null);
   activeTickets = signal<Ticket[]>([]);
   recentTickets = signal<Ticket[]>([]);
-  cash = signal<CashSummary | null>(null);
+  cash = signal<TodayCashSummary | null>(null);
   board = signal<ResourceBoard | null>(null);
   now = signal(new Date());
 
@@ -67,12 +67,10 @@ export class DashboardPageComponent {
   });
 
   revenueVsYesterday = computed(() => {
-    const yesterday = new Date(this.now());
-    yesterday.setDate(yesterday.getDate() - 1);
-    const closure = this.history.closureFor(this.tenantId, dateKey(yesterday));
     const today = Number(this.cash()?.todayRevenue) || 0;
-    if (!closure?.total) return null;
-    const pct = Math.round((today - closure.total) / closure.total * 100);
+    const yesterday = Number(this.cash()?.yesterdayRevenue) || 0;
+    if (!yesterday) return null;
+    const pct = Math.round((today - yesterday) / yesterday * 100);
     return { text: `${pct >= 0 ? '↑' : '↓'} ${Math.abs(pct)}% vs ayer` };
   });
 
@@ -91,7 +89,7 @@ export class DashboardPageComponent {
       next: v => { this.recentTickets.set(v); this.history.mergeTickets(this.tenantId, v); },
       error: () => this.recentTickets.set([])
     });
-    this.http.get<CashSummary>(`${API.payment}/cash-sessions/current`, headers).subscribe({ next: v => this.cash.set(v), error: () => this.cash.set(null) });
+    this.http.get<TodayCashSummary>(`${API.payment}/payments/today`, headers).subscribe({ next: v => this.cash.set(v), error: () => this.cash.set(null) });
     this.http.get<ResourceBoard>(`${API.operation}/resources/board`, headers).subscribe({ next: v => this.board.set(v), error: () => this.board.set(null) });
     this.now.set(new Date());
   }
@@ -125,6 +123,7 @@ export class DashboardPageComponent {
   }
 
   meta = vehicleMeta;
+  helmets = helmetLockersOf;
   money = money;
   hhmm = hhmm;
   plate = displayPlate;

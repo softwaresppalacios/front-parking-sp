@@ -4,17 +4,16 @@ import { Component, ElementRef, computed, inject, signal, viewChild } from '@ang
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
-import { CashClosure, CashSummary, Ticket } from '../../../core/models';
-import { LocalHistoryService } from '../../../core/state/local-history.service';
-import { ParkingContextService } from '../../../core/state/parking-context.service';
+import { CashPayment, CashSession } from '../../../core/models';
 import { ToastService } from '../../../core/ui/toast.service';
 import {
-  compactMoney, dateKey, downloadCsv, hhmm, money, parseDateKey, sessionUserName, shortDate, shortDay, tenantHeaders, tenantIdFromRoute, vehicleMeta
+  apiErrorMessage, compactMoney, dateKey, displayPlate, downloadCsv, durationText, hhmm, minutesBetween, money, parseDateKey, paymentMethodMeta,
+  shortDate, shortDay, tenantHeaders, tenantIdFromRoute, vehicleMeta
 } from '../../../core/utils';
 
-type ClosureRow = CashClosure & { status: 'Cerrada' | 'Abierta'; day: string };
-type Filters = { from: string; to: string; responsible: string; status: string };
+type Filters = { from: string; to: string; responsible: string; status: '' | 'OPEN' | 'CLOSED' };
 
+/** Historial de turnos de caja (payment-cash-service), solo para propietario y admin. */
 @Component({
   selector: 'cash-reports-page',
   standalone: true,
@@ -25,121 +24,134 @@ export class CashReportsPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
-  private history = inject(LocalHistoryService);
-  context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
   detailPanel = viewChild<ElementRef<HTMLElement>>('detailPanel');
 
   form: Filters = this.defaultFilters();
   applied = signal<Filters>(this.defaultFilters());
-  closures = signal<CashClosure[]>([]);
-  openSession = signal<CashClosure | null>(null);
-  selected = signal<ClosureRow | null>(null);
+  rows = signal<CashSession[]>([]);
+  loading = signal(false);
+  /** Responsables vistos en cualquier consulta, para el filtro. */
+  responsibles = signal<string[]>([]);
+  selected = signal<CashSession | null>(null);
 
-  allRows = computed<ClosureRow[]>(() => {
-    const closed = this.closures().map(item => ({ ...item, status: 'Cerrada' as const, day: shortDay(parseDateKey(item.date)) }));
-    const open = this.openSession();
-    const rows = open && !closed.some(item => item.date === open.date)
-      ? [{ ...open, status: 'Abierta' as const, day: shortDay(parseDateKey(open.date)) }, ...closed]
-      : closed;
-    return rows.sort((a, b) => b.date.localeCompare(a.date));
-  });
-  responsibles = computed(() => [...new Set(this.allRows().map(row => row.responsible))].sort());
-  rows = computed(() => {
-    const { from, to, responsible, status } = this.applied();
-    return this.allRows().filter(row => row.date >= from && row.date <= to
-      && (!responsible || row.responsible === responsible)
-      && (!status || row.status === status));
-  });
-  total = computed(() => this.rows().reduce((sum, row) => sum + row.total, 0));
-  cash = computed(() => this.rows().reduce((sum, row) => sum + row.cash, 0));
-  digital = computed(() => this.rows().reduce((sum, row) => sum + row.digital, 0));
-  pending = computed(() => this.rows().filter(row => row.status === 'Abierta').length);
+  total = computed(() => this.rows().reduce((sum, row) => sum + Number(row.totals.total), 0));
+  cash = computed(() => this.rows().reduce((sum, row) => sum + Number(row.totals.cash), 0));
+  online = computed(() => this.rows().reduce((sum, row) => sum + Number(row.totals.online), 0));
+  pending = computed(() => this.rows().filter(row => row.status === 'OPEN').length);
 
   constructor() {
     this.load();
   }
 
-  load() {
-    this.closures.set(this.history.closures(this.tenantId));
-    const headers = tenantHeaders(this.tenantId);
-    this.http.get<CashSummary>(`${API.payment}/cash-sessions/current`, headers).subscribe({
-      next: summary => {
-        if (!summary.movements) { this.openSession.set(null); return; }
-        this.http.get<Ticket[]>(`${API.operation}/tickets/recent`, headers).subscribe({
-          next: recent => { this.history.mergeTickets(this.tenantId, recent); this.buildOpenSession(summary); },
-          error: () => this.buildOpenSession(summary)
-        });
+  filter() {
+    if (this.form.from > this.form.to) { this.toast.err('La fecha inicio debe ser anterior a la fecha fin'); return; }
+    this.applied.set({ ...this.form });
+    this.selected.set(null);
+    this.load(true);
+  }
+
+  select(row: CashSession) {
+    this.http.get<CashSession>(`${API.payment}/cash-sessions/${row.uuid}`, tenantHeaders(this.tenantId)).subscribe({
+      next: detail => {
+        this.selected.set(detail);
+        window.setTimeout(() => this.detailPanel()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       },
-      error: () => this.openSession.set(null)
+      error: err => this.toast.err(apiErrorMessage(err, 'No se pudo cargar el detalle del turno'))
     });
   }
 
-  filter() {
-    if (this.form.from > this.form.to) { this.toast.err('La fecha inicio debe ser anterior a la fecha fin'); return; }
-    this.toast.info('Filtrando cierres...', '⌕');
-    this.applied.set({ ...this.form });
-    this.selected.set(null);
-    window.setTimeout(() => this.toast.ok(`${this.rows().length} cierres encontrados`), 400);
-  }
-
-  select(row: ClosureRow) {
-    this.selected.set(row);
-    window.setTimeout(() => this.detailPanel()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-  }
-
   exportAll() {
-    if (!this.rows().length) { this.toast.err('No hay cierres para exportar'); return; }
-    downloadCsv(`reporte_cierres_${this.applied().from}_${this.applied().to}.csv`, [
-      ['Fecha', 'Día', 'Apertura', 'Cierre', 'Responsable', 'Vehículos', 'Efectivo', 'Digital', 'Mensualidades', 'Total', 'Estado', 'Observaciones'],
-      ...this.rows().map(row => [row.date, row.day, row.openedAt, row.closedAt, row.responsible, row.vehicles, row.cash, row.digital, row.monthly, row.total, row.status, row.notes])
-    ]);
-    this.toast.ok('Excel generado con todos los cierres', '📊');
-  }
-
-  exportDay() {
-    const row = this.selected();
-    if (!row) return;
-    downloadCsv(`cierre_${row.date}.csv`, [
-      ['Cierre de caja', row.date, row.day],
-      ['Responsable', row.responsible, 'Apertura', row.openedAt, 'Cierre', row.closedAt],
-      ['Total', row.total, 'Efectivo', row.cash, 'Digital', row.digital, 'Mensualidades', row.monthly],
-      ['Observaciones', row.notes],
-      [],
-      ['#', 'Placa', 'Tipo', 'Entrada', 'Salida', 'Tiempo', 'Método', 'Valor'],
-      ...row.movements.map(movement => [
-        movement.n, movement.plate, movement.monthly ? 'Mensualidad' : vehicleMeta(movement.vehicleType).short,
-        movement.entry, movement.exit, movement.duration, movement.method === 'CASH' ? 'Efectivo' : 'Digital', movement.amount
+    if (!this.rows().length) { this.toast.err('No hay turnos para exportar'); return; }
+    downloadCsv(`reporte_caja_${this.applied().from}_${this.applied().to}.csv`, [
+      ['Fecha', 'Día', 'Apertura', 'Abrió', 'Cierre', 'Cerró', 'Vehículos', 'Efectivo', 'En línea', 'Por horas/día', 'Mensualidades', 'Total',
+        'Base', 'Efectivo esperado', 'Efectivo contado', 'Diferencia', 'Estado', 'Observaciones'],
+      ...this.rows().map(row => [
+        this.date(row), this.day(row), hhmm(row.openedAt), row.openedByName || '', row.closedAt ? hhmm(row.closedAt) : '', row.closedByName || '',
+        row.totals.vehicles, row.totals.cash, row.totals.online, row.totals.parking, row.totals.monthly, row.totals.total,
+        row.openingFloat, row.expectedCash, row.countedCash ?? '', row.cashDifference ?? '', this.statusLabel(row), row.notes || ''
       ])
     ]);
-    this.toast.ok(`Excel exportado: cierre del ${row.date}`, '📥');
+    this.toast.ok('Excel generado con todos los turnos', '📊');
   }
 
-  pct(value: number) { return this.total() ? Math.round(value / this.total() * 100) : 0; }
-  average(row: ClosureRow) { return row.vehicles ? Math.round((row.total - row.monthly) / row.vehicles) : 0; }
-  rangeLabel() { return `${shortDate(this.applied().from)} – ${shortDate(this.applied().to)}, ${parseDateKey(this.applied().to).getFullYear()}`; }
-  isWeekend(row: ClosureRow) { return row.day === 'Sáb' || row.day === 'Dom'; }
+  exportDetail() {
+    const row = this.selected();
+    if (!row) return;
+    downloadCsv(`caja_${this.date(row)}_${hhmm(row.openedAt).replace(/\D/g, '')}.csv`, [
+      ['Turno de caja', this.date(row), this.day(row), this.statusLabel(row)],
+      ['Abrió', row.openedByName || '', 'Apertura', hhmm(row.openedAt), 'Cerró', row.closedByName || '', 'Cierre', row.closedAt ? hhmm(row.closedAt) : ''],
+      ['Total', row.totals.total, 'Efectivo', row.totals.cash, 'En línea', row.totals.online, 'Mensualidades', row.totals.monthly],
+      ['Base', row.openingFloat, 'Esperado', row.expectedCash, 'Contado', row.countedCash ?? '', 'Diferencia', row.cashDifference ?? ''],
+      ['Observaciones', row.notes || ''],
+      [],
+      ['#', 'Placa', 'Concepto', 'Entrada', 'Salida', 'Tiempo', 'Método', 'Referencia', 'Cobró', 'Valor'],
+      ...(row.payments || []).map((payment, index) => {
+        const r = this.paymentRow(payment);
+        return [index + 1, r.plate, r.monthly ? 'Mensualidad' : vehicleMeta(r.vehicleType).short, r.entry, r.exit, r.duration,
+          paymentMethodMeta(payment.method).label, payment.onlineReference || '', payment.registeredByName || '', payment.amount];
+      })
+    ]);
+    this.toast.ok(`Excel exportado: turno del ${this.date(row)}`, '📥');
+  }
 
+  paymentRow(payment: CashPayment) {
+    const monthly = payment.concept === 'MONTHLY';
+    const exit = payment.checkedOutAt || payment.paidAt;
+    return {
+      plate: payment.plate ? displayPlate(payment.plate) : '—',
+      vehicleType: payment.vehicleType || 'CAR',
+      monthly,
+      entry: monthly || !payment.checkedInAt ? '—' : hhmm(payment.checkedInAt),
+      exit: hhmm(exit),
+      duration: monthly ? (payment.description || 'Mensualidad') : payment.checkedInAt ? durationText(minutesBetween(payment.checkedInAt, exit)) : '—'
+    };
+  }
+
+  date(row: CashSession) { return dateKey(row.openedAt); }
+  day(row: CashSession) { return shortDay(new Date(row.openedAt)); }
+  responsible(row: CashSession) { return row.closedByName || row.openedByName || '—'; }
+  statusLabel(row: CashSession) { return row.status === 'OPEN' ? 'Abierta' : 'Cerrada'; }
+  isWeekend(row: CashSession) { const day = new Date(row.openedAt).getDay(); return day === 0 || day === 6; }
+  pct(value: number) { return this.total() ? Math.round(value / this.total() * 100) : 0; }
+  average(row: CashSession) { return row.totals.vehicles ? Math.round(row.totals.parking / row.totals.vehicles) : 0; }
+  rangeLabel() { return `${shortDate(this.applied().from)} – ${shortDate(this.applied().to)}, ${parseDateKey(this.applied().to).getFullYear()}`; }
+  differenceText(value: number | null | undefined) {
+    if (value === null || value === undefined) return '—';
+    const diff = Number(value);
+    if (diff === 0) return 'Cuadrada';
+    return diff < 0 ? `−${money(-diff)}` : `+${money(diff)}`;
+  }
+  differenceColor(value: number | null | undefined) {
+    const diff = Number(value) || 0;
+    return value === null || value === undefined ? 'var(--text3)' : diff < 0 ? 'var(--red)' : diff > 0 ? 'var(--amber)' : 'var(--green)';
+  }
+
+  method = paymentMethodMeta;
   meta = vehicleMeta;
   money = money;
   compact = compactMoney;
+  hhmm = hhmm;
 
-  private buildOpenSession(summary: CashSummary) {
-    const rows = this.history.movementRows(summary.recentMovements || [], this.history.tickets(this.tenantId), this.context.subscriptions());
-    const monthly = rows.filter(row => row.monthly).reduce((sum, row) => sum + row.amount, 0);
-    this.openSession.set({
-      id: 'open',
-      date: dateKey(new Date()),
-      openedAt: this.context.todaySchedule()?.openTime?.slice(0, 5) || (rows[0] ? hhmm(rows[0].paidAt) : '—'),
-      closedAt: '—',
-      responsible: sessionUserName(),
-      vehicles: rows.filter(row => !row.monthly).length,
-      cash: Number(summary.cashRevenue) || 0,
-      digital: Number(summary.digitalRevenue) || 0,
-      monthly,
-      total: Number(summary.todayRevenue) || 0,
-      notes: 'Caja abierta — pendiente de cierre',
-      movements: rows
+  private load(announce = false) {
+    const { from, to, responsible, status } = this.applied();
+    const params: Record<string, string> = { from, to };
+    if (responsible) params['responsible'] = responsible;
+    if (status) params['status'] = status;
+    this.loading.set(true);
+    this.http.get<CashSession[]>(`${API.payment}/cash-sessions`, { ...tenantHeaders(this.tenantId), params }).subscribe({
+      next: rows => {
+        this.rows.set(rows);
+        this.loading.set(false);
+        const names = new Set([...this.responsibles(), ...rows.map(row => this.responsible(row)).filter(name => name !== '—')]);
+        this.responsibles.set([...names].sort());
+        if (announce) this.toast.ok(`${rows.length} turnos encontrados`);
+      },
+      error: err => {
+        this.rows.set([]);
+        this.loading.set(false);
+        this.toast.err(apiErrorMessage(err, 'No se pudo cargar el historial de caja'));
+      }
     });
   }
 

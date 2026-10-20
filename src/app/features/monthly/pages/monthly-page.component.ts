@@ -9,7 +9,7 @@ import { ParkingContextService } from '../../../core/state/parking-context.servi
 import { ToastService } from '../../../core/ui/toast.service';
 import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
 import {
-  VEHICLE_TYPES, cleanPlate, dateKey, daysUntil, displayPlate, formatPlate, money, parseDateKey, readStorage, shortDate,
+  apiErrorMessage, VEHICLE_TYPES, cleanPlate, dateKey, daysUntil, displayPlate, formatPlate, money, parseDateKey, paymentMethodMeta, readStorage, shortDate,
   tenantHeaders, tenantIdFromRoute, vehicleMeta, whatsappUrl, writeStorage
 } from '../../../core/utils';
 
@@ -156,17 +156,22 @@ export class MonthlyPageComponent {
       vehicleType: this.form.vehicleType,
       amount: Number(this.form.amount),
       paymentMethod: this.form.paymentMethod,
+      onlineReference: this.form.paymentMethod === 'ONLINE' ? this.form.onlineReference.trim() || null : null,
       startsAt: this.form.startsAt,
       months: Number(this.form.months) || 1
     }, tenantHeaders(this.tenantId)).subscribe({
+      // El backend crea la mensualidad y registra su cobro en caja en la misma operacion.
       next: subscription => {
         this.prices = { ...this.prices, [subscription.vehicleType]: Number(this.form.amount) };
         writeStorage(this.pricesKey(), this.prices);
         this.context.addSubscription(subscription);
-        this.registerPayment(subscription);
+        this.toast.ok(`Mensualidad registrada y pago ingresado a caja (${paymentMethodMeta(subscription.paymentMethod).label.toLowerCase()})`);
+        this.sendWelcome(subscription);
+        this.saving.set(false);
+        this.modalOpen.set(false);
       },
       error: err => {
-        this.toast.err(err?.error?.message || 'No se pudo registrar la mensualidad');
+        this.toast.err(apiErrorMessage(err, 'No se pudo registrar la mensualidad'));
         this.saving.set(false);
       }
     });
@@ -185,26 +190,6 @@ export class MonthlyPageComponent {
   daysClass(days: number) { return days <= 3 ? 'exp' : days <= 10 ? 'warn' : 'ok'; }
   shortDate = shortDate;
   money = money;
-
-  private registerPayment(subscription: MonthlySubscription) {
-    this.http.post(`${API.payment}/payments`, {
-      ticketUuid: subscription.uuid,
-      amount: subscription.amount,
-      method: subscription.paymentMethod || this.form.paymentMethod
-    }, tenantHeaders(this.tenantId)).subscribe({
-      next: () => {
-        this.toast.ok('Mensualidad registrada y pago ingresado a caja');
-        this.sendWelcome(subscription);
-        this.saving.set(false);
-        this.modalOpen.set(false);
-      },
-      error: () => {
-        this.toast.err('La mensualidad se creó, pero el pago no entró a caja');
-        this.saving.set(false);
-        this.modalOpen.set(false);
-      }
-    });
-  }
 
   private sendWelcome(subscription: MonthlySubscription) {
     if (!subscription.customerPhone) return;
@@ -230,6 +215,7 @@ export class MonthlyPageComponent {
       vehicleType: 'CAR',
       amount: this.prices?.['CAR'] ?? DEFAULT_PRICES['CAR'],
       paymentMethod: 'CASH',
+      onlineReference: '',
       startsAt: dateKey(new Date()),
       months: 1
     };

@@ -1,16 +1,22 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
-import { CashClosure, CashSummary, Ticket } from '../../../core/models';
-import { LocalHistoryService } from '../../../core/state/local-history.service';
+import { AuthService } from '../../../core/auth/auth.service';
+import { CashPayment, CashSession } from '../../../core/models';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
 import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
-import { dateKey, hhmm, money, parseDateKey, sessionUserName, shortDate, shortDay, tenantHeaders, tenantIdFromRoute, vehicleMeta } from '../../../core/utils';
+import {
+  apiErrorMessage, dateKey, displayPlate, durationText, hhmm, minutesBetween, money, paymentMethodMeta, shortDate, shortDay, tenantHeaders, tenantIdFromRoute, vehicleMeta
+} from '../../../core/utils';
 
+/**
+ * Turno de caja abierto: cobros por horas o dia y mensualidades, en efectivo o en linea.
+ * Al cerrar, el cajero cuenta el efectivo y queda registrada la diferencia con lo esperado.
+ */
 @Component({
   selector: 'cash-page',
   standalone: true,
@@ -21,29 +27,26 @@ export class CashPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
-  private history = inject(LocalHistoryService);
   context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
+  /** El historial de cierres es solo para propietario y admin. */
+  canManage = inject(AuthService).canManage(this.tenantId);
 
-  summary = signal<CashSummary | null>(null);
-  tickets = signal<Ticket[]>([]);
-  closures = signal<CashClosure[]>([]);
-  modalOpen = signal(false);
+  /** undefined mientras carga; null si no hay caja abierta. */
+  session = signal<CashSession | null | undefined>(undefined);
+  previous = signal<CashSession[]>([]);
+  openModal = signal(false);
+  closeModal = signal(false);
+  saving = signal(false);
+  openingFloat: number | null = 0;
+  countedCash: number | null = null;
   notes = '';
 
-  today = dateKey(new Date());
-  rows = computed(() => this.history.movementRows(this.summary()?.recentMovements || [], this.tickets(), this.context.subscriptions()));
-  vehicleRows = computed(() => this.rows().filter(row => !row.monthly));
-  monthlyTotal = computed(() => this.rows().filter(row => row.monthly).reduce((sum, row) => sum + row.amount, 0));
-  total = computed(() => Number(this.summary()?.todayRevenue) || 0);
-  average = computed(() => this.vehicleRows().length ? Math.round((this.total() - this.monthlyTotal()) / this.vehicleRows().length) : 0);
-  todayClosure = computed(() => this.closures().find(item => item.date === this.today) || null);
-  previousClosures = computed(() => this.closures().filter(item => item.date !== this.today).slice(0, 5));
-  openingTime = computed(() => {
-    const open = this.context.todaySchedule()?.openTime;
-    if (open) return open.slice(0, 5);
-    const first = this.rows()[0];
-    return first ? hhmm(first.paidAt) : '—';
+  payments = computed(() => this.session()?.payments || []);
+  totals = computed(() => this.session()?.totals);
+  average = computed(() => {
+    const totals = this.totals();
+    return totals?.vehicles ? Math.round(totals.parking / totals.vehicles) : 0;
   });
 
   hourly = computed(() => {
@@ -52,9 +55,9 @@ export class CashPageComponent {
     const end = schedule?.closeTime ? Number(schedule.closeTime.slice(0, 2)) : 18;
     const buckets = new Map<number, number>();
     for (let hour = start; hour <= Math.max(start, end); hour++) buckets.set(hour, 0);
-    this.rows().forEach(row => {
-      const hour = new Date(row.paidAt).getHours();
-      buckets.set(hour, (buckets.get(hour) || 0) + row.amount);
+    this.payments().forEach(payment => {
+      const hour = new Date(payment.paidAt).getHours();
+      buckets.set(hour, (buckets.get(hour) || 0) + Number(payment.amount));
     });
     const entries = [...buckets.entries()].sort((a, b) => a[0] - b[0]);
     const max = Math.max(1, ...entries.map(([, value]) => value));
@@ -66,56 +69,109 @@ export class CashPageComponent {
   }
 
   load() {
-    const headers = tenantHeaders(this.tenantId);
-    this.http.get<CashSummary>(`${API.payment}/cash-sessions/current`, headers).subscribe({
-      next: summary => this.summary.set(summary),
-      error: () => { this.summary.set(null); this.toast.err('No se pudo cargar la caja del día'); }
+    this.http.get<{ session: CashSession | null }>(`${API.payment}/cash-sessions/current`, tenantHeaders(this.tenantId)).subscribe({
+      next: response => this.session.set(response.session),
+      error: () => { this.session.set(null); this.toast.err('No se pudo cargar la caja'); }
     });
-    this.http.get<Ticket[]>(`${API.operation}/tickets/recent`, headers).subscribe({
-      next: recent => {
-        this.history.mergeTickets(this.tenantId, recent);
-        this.tickets.set(this.history.tickets(this.tenantId));
-      },
-      error: () => this.tickets.set(this.history.tickets(this.tenantId))
-    });
-    this.closures.set(this.history.closures(this.tenantId));
+    if (this.canManage) this.loadPrevious();
   }
 
-  openClose() {
-    this.notes = this.todayClosure()?.notes || '';
-    this.modalOpen.set(true);
+  startOpen() {
+    this.openingFloat = 0;
+    this.openModal.set(true);
+  }
+
+  confirmOpen() {
+    const base = Number(this.openingFloat);
+    if (this.openingFloat === null || !(base >= 0)) { this.toast.err('Ingrese la base de efectivo (puede ser 0)'); return; }
+    this.saving.set(true);
+    this.http.post<CashSession>(`${API.payment}/cash-sessions/open`, { openingFloat: base }, tenantHeaders(this.tenantId)).subscribe({
+      next: session => {
+        this.session.set(session);
+        this.saving.set(false);
+        this.openModal.set(false);
+        this.toast.ok(`Caja abierta con base de ${money(base)}`, '◈');
+      },
+      error: (err: HttpErrorResponse) => this.fail(err, 'No se pudo abrir la caja')
+    });
+  }
+
+  startClose() {
+    this.countedCash = null;
+    this.notes = '';
+    this.closeModal.set(true);
   }
 
   confirmClose() {
-    const summary = this.summary();
-    const closure: CashClosure = {
-      id: `${this.today}-${Date.now()}`,
-      date: this.today,
-      openedAt: this.openingTime(),
-      closedAt: hhmm(new Date()),
-      responsible: sessionUserName(),
-      vehicles: this.vehicleRows().length,
-      cash: Number(summary?.cashRevenue) || 0,
-      digital: Number(summary?.digitalRevenue) || 0,
-      monthly: this.monthlyTotal(),
-      total: this.total(),
-      notes: this.notes.trim() || 'Sin novedades',
-      movements: this.rows()
+    const counted = Number(this.countedCash);
+    if (this.countedCash === null || !(counted >= 0)) { this.toast.err('Ingrese el efectivo contado en caja'); return; }
+    this.saving.set(true);
+    this.http.post<CashSession>(`${API.payment}/cash-sessions/current/close`, { countedCash: counted, notes: this.notes.trim() || null }, tenantHeaders(this.tenantId)).subscribe({
+      next: closed => {
+        this.saving.set(false);
+        this.closeModal.set(false);
+        this.session.set(null);
+        const diff = Number(closed.cashDifference) || 0;
+        const detail = diff === 0 ? 'Efectivo cuadrado' : diff < 0 ? `Faltante de ${money(-diff)}` : `Sobrante de ${money(diff)}`;
+        this.toast.ok(`Caja cerrada. Total: ${money(closed.totals.total)}. ${detail}`, '◈');
+        if (this.canManage) this.loadPrevious();
+      },
+      error: (err: HttpErrorResponse) => this.fail(err, 'No se pudo cerrar la caja')
+    });
+  }
+
+  row(payment: CashPayment, index: number) {
+    const monthly = payment.concept === 'MONTHLY';
+    const exit = payment.checkedOutAt || payment.paidAt;
+    return {
+      n: String(index + 1).padStart(3, '0'),
+      plate: payment.plate ? displayPlate(payment.plate) : '—',
+      vehicleType: payment.vehicleType || 'CAR',
+      monthly,
+      entry: monthly || !payment.checkedInAt ? '—' : hhmm(payment.checkedInAt),
+      exit: hhmm(exit),
+      duration: monthly ? (payment.description || 'Mensualidad') : payment.checkedInAt ? durationText(minutesBetween(payment.checkedInAt, exit)) : '—'
     };
-    this.history.saveClosure(this.tenantId, closure);
-    this.closures.set(this.history.closures(this.tenantId));
-    this.modalOpen.set(false);
-    this.toast.ok(`Caja cerrada. Total del día: ${money(closure.total)}`, '◈');
   }
 
-  closureLabel(item: CashClosure) {
-    return `${shortDay(parseDateKey(item.date))} ${shortDate(item.date)}`;
+  /** Efectivo contado menos el esperado; null hasta que se escriba el conteo. */
+  difference() {
+    if (this.countedCash === null || (this.countedCash as unknown) === '') return null;
+    return Number(this.countedCash) - Number(this.session()?.expectedCash || 0);
   }
 
-  todayLabel() {
-    return `${shortDay(new Date())} ${shortDate(this.today)}`;
+  differenceText(value: number | null | undefined) {
+    const diff = Number(value) || 0;
+    if (diff === 0) return 'Cuadrada';
+    return diff < 0 ? `Faltan ${money(-diff)}` : `Sobran ${money(diff)}`;
   }
 
+  sessionLabel(item: CashSession) {
+    const date = new Date(item.openedAt);
+    return `${shortDay(date)} ${shortDate(dateKey(date))} · ${hhmm(item.openedAt)}`;
+  }
+
+  method = paymentMethodMeta;
   meta = vehicleMeta;
   money = money;
+  hhmm = hhmm;
+
+  private loadPrevious() {
+    const from = new Date();
+    from.setDate(from.getDate() - 60);
+    this.http.get<CashSession[]>(`${API.payment}/cash-sessions`, {
+      ...tenantHeaders(this.tenantId),
+      params: { from: dateKey(from), to: dateKey(new Date()), status: 'CLOSED' }
+    }).subscribe({
+      next: sessions => this.previous.set(sessions.slice(0, 5)),
+      error: () => this.previous.set([])
+    });
+  }
+
+  private fail(err: HttpErrorResponse, fallback: string) {
+    this.saving.set(false);
+    this.toast.err(apiErrorMessage(err, fallback));
+    // La caja pudo cambiar en otro equipo (otro cajero abrio o cerro): se recarga.
+    if (err.status === 409) this.load();
+  }
 }

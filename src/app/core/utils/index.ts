@@ -1,5 +1,6 @@
 import { HttpHeaders } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
+import { API } from '../api/api.config';
 import { PricingRule, Schedule } from '../models';
 
 export function tenantIdFromRoute(route: ActivatedRoute): string {
@@ -152,41 +153,54 @@ export function initials(name: string) {
   return ((words[0]?.[0] || '') + (words[1]?.[0] || words[0]?.[1] || '')).toUpperCase();
 }
 
-/** Replica en el navegador el calculo del pricing-service para mostrar valores estimados. */
-export function estimateAmount(rule: PricingRule | undefined, minutes: number): number {
-  if (!rule) return 0;
+const MINUTES_PER_DAY = 24 * 60;
+
+export type ChargeEstimate = { amount: number; days: number; firstHourCharged: boolean; additionalMinutes: number; additionalAmount: number };
+
+/**
+ * Replica en el navegador el cobro del pricing-service: la primera hora (o fraccion) con su valor,
+ * despues cada minuto proporcional al valor de la hora adicional (redondeado al peso),
+ * y bloques de 24 h con el valor dia. El valor que se cobra siempre lo calcula el servidor.
+ */
+export function estimateCharge(rule: PricingRule | undefined, minutes: number): ChargeEstimate {
+  const none = { days: 0, firstHourCharged: false, additionalMinutes: 0, additionalAmount: 0 };
+  if (!rule) return { amount: 0, ...none };
+  if (rule.pricingModel === 'FLAT') return { amount: Number(rule.flatAmount) || 0, ...none };
   const billable = Math.max(1, minutes);
-  if (rule.pricingModel === 'FLAT') return Number(rule.flatAmount) || 0;
   const day = Number(rule.dayAmount) || 0;
-  if (billable >= 24 * 60 && day > 0) {
-    const days = Math.floor(billable / (24 * 60));
-    const remaining = billable % (24 * 60);
-    return day * days + estimateAmount(rule, remaining === 0 ? 1 : remaining);
+  let days = 0;
+  let rest = billable;
+  if (billable >= MINUTES_PER_DAY && day > 0) {
+    days = Math.floor(billable / MINUTES_PER_DAY);
+    rest = billable % MINUTES_PER_DAY;
+    if (rest === 0) return { amount: day * days, ...none, days };
   }
   const hourly = Number(rule.hourlyAmount) || 0;
   const additional = Number(rule.additionalHourAmount ?? rule.hourlyAmount) || 0;
-  const fraction = Number(rule.fractionAmount) || 0;
-  const fractionMinutes = Math.max(1, Number(rule.fractionMinutes) || 30);
   const increaseAfter = Number(rule.rateIncreaseAfterHours) || 0;
   const increase = Number(rule.rateIncreaseAmount) || 0;
   const withIncrease = (hourNumber: number, base: number) => increaseAfter > 0 && hourNumber > increaseAfter ? base + increase : base;
-  const capped = (total: number) => rule.applyDailyCap && day > 0 ? Math.min(total, day) : total;
-
-  const fullHours = Math.floor(billable / 60);
-  const remainingMinutes = billable % 60;
-  if (fullHours === 0) return capped(hourly);
-  let total = withIncrease(1, hourly);
-  for (let hour = 2; hour <= fullHours; hour++) total += withIncrease(hour, additional);
-  if (remainingMinutes > 0) total += fraction * Math.ceil(remainingMinutes / fractionMinutes);
-  return capped(total);
+  const additionalMinutes = Math.max(0, rest - 60);
+  const fullHours = Math.floor(additionalMinutes / 60);
+  const looseMinutes = additionalMinutes % 60;
+  let additionalAmount = 0;
+  for (let hour = 2; hour <= fullHours + 1; hour++) additionalAmount += withIncrease(hour, additional);
+  if (looseMinutes) additionalAmount += withIncrease(fullHours + 2, additional) * looseMinutes / 60;
+  additionalAmount = Math.round(additionalAmount);
+  let hours = withIncrease(1, hourly) + additionalAmount;
+  if (rule.applyDailyCap && day > 0) hours = Math.min(hours, day);
+  return { amount: day * days + hours, days, firstHourCharged: true, additionalMinutes, additionalAmount };
 }
 
-/** Desglose de la tarifa para mostrar en la salida. */
-export function amountBreakdown(rule: PricingRule | undefined, minutes: number) {
-  if (!rule || rule.pricingModel === 'FLAT') return { base: Number(rule?.flatAmount) || 0, extra: 0 };
-  const total = estimateAmount(rule, minutes);
-  const base = Number(rule.hourlyAmount) || 0;
-  return { base, extra: Math.max(0, total - base) };
+export function estimateAmount(rule: PricingRule | undefined, minutes: number): number {
+  return estimateCharge(rule, minutes).amount;
+}
+
+/** Etiqueta del metodo de pago. DIGITAL es el nombre anterior de ONLINE. */
+export function paymentMethodMeta(method: string | null | undefined) {
+  if (method === 'ONLINE' || method === 'DIGITAL') return { label: 'En línea', icon: '🌐', cls: 'blue' };
+  if (method === 'CASH') return { label: 'Efectivo', icon: '💵', cls: 'green' };
+  return { label: '—', icon: '', cls: '' };
 }
 
 export function whatsappUrl(phone: string | null | undefined, text: string) {
@@ -233,4 +247,30 @@ export function writeStorage(key: string, value: unknown) {
 
 export function sessionUserName() {
   return readStorage<{ user?: { fullName?: string } }>('sp_session', {}).user?.fullName || 'Administrador';
+}
+
+const SERVICE_NAMES: { prefix: string; name: string }[] = [
+  { prefix: API.tenant, name: 'El servicio de usuarios y configuración (puerto 8081)' },
+  { prefix: API.operation, name: 'El servicio de operación (puerto 8082)' },
+  { prefix: API.pricing, name: 'El servicio de tarifas (puerto 8083)' },
+  { prefix: API.payment, name: 'El servicio de caja (puerto 8084)' },
+  { prefix: API.reporting, name: 'El servicio de reportes (puerto 8085)' }
+];
+
+/**
+ * Mensaje legible para un error HTTP: si el servicio no responde dice cual es, y si respondio usa su mensaje.
+ * Los errores 503 de un servicio que llama a otro (p. ej. la salida que consulta tarifas) traen su propio texto.
+ */
+export function apiErrorMessage(err: { status?: number; url?: string | null; error?: { message?: string } } | null | undefined, fallback: string) {
+  if (err?.status === 0) {
+    const service = SERVICE_NAMES.find(item => err.url?.startsWith(item.prefix));
+    return `${service?.name || 'El servidor'} no responde. Verifica que esté encendido.`;
+  }
+  return err?.error?.message || fallback;
+}
+
+/** Casilleros de casco de un ticket (0, 1 o 2), compatible con tickets que solo traen helmetLockerCode. */
+export function helmetLockersOf(ticket: { helmetLockerCode?: string | null; helmetLockerCodes?: string[] | null }) {
+  if (ticket.helmetLockerCodes?.length) return ticket.helmetLockerCodes;
+  return ticket.helmetLockerCode ? [ticket.helmetLockerCode] : [];
 }
