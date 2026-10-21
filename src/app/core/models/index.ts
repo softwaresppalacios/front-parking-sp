@@ -128,7 +128,13 @@ export type MonthlySubscription = {
   startsAt: string;
   expiresAt: string;
   paidAt: string;
+  /** true solo si esta vigente hoy (no cancelada y sin vencer). */
   active: boolean;
+  /** ACTIVE (vigente), EXPIRED (vencida, se puede renovar) o CANCELLED. */
+  status?: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  renewedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
 };
 
 export type PaymentMethod = 'CASH' | 'ONLINE';
@@ -170,3 +176,58 @@ export type CashSession = {
 };
 
 export type TodayCashSummary = { todayRevenue: number; cashRevenue: number; onlineRevenue: number; payments: number; yesterdayRevenue: number };
+
+/** Reporte por rango de fechas calculado en reporting-audit-service (cobros de caja + tickets). */
+export type ReportTotals = {
+  revenue: number;
+  parkingRevenue: number;
+  monthlyRevenue: number;
+  cashRevenue: number;
+  onlineRevenue: number;
+  entries: number;
+  paidExits: number;
+  monthlyEntries: number;
+  monthlySales: number;
+  stillInside: number;
+  averageTicket: number;
+  averageStayMinutes: number;
+  days: number;
+};
+export type ReportPayment = {
+  paidAt: string;
+  concept: 'PARKING' | 'MONTHLY';
+  plate?: string | null;
+  vehicleType?: string | null;
+  checkedInAt?: string | null;
+  checkedOutAt?: string | null;
+  method: string;
+  amount: number;
+  registeredByName?: string | null;
+  description?: string | null;
+};
+export type Report = {
+  from: string;
+  to: string;
+  vehicleType?: string | null;
+  totals: ReportTotals;
+  daily: { date: string; revenue: number; parkingRevenue: number; monthlyRevenue: number; entries: number }[];
+  byVehicleType: { vehicleType: string; entries: number; revenue: number }[];
+  byMethod: { method: string; payments: number; amount: number }[];
+  byCashier: { name: string; payments: number; amount: number }[];
+  payments: ReportPayment[];
+  paymentsTruncated: boolean;
+};
+
+/** Registro de auditoria (quien hizo que y cuando). */
+export type AuditEntry = {
+  id: number;
+  createdAt: string;
+  actorUuid?: string | null;
+  actor?: string | null;
+  action: string;
+  entityType?: string | null;
+  entityRef?: string | null;
+  details?: string | null;
+  source?: string | null;
+};
+export type AuditPage = { entries: AuditEntry[]; truncated: boolean; actors: string[] };

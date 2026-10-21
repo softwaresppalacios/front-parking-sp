@@ -1,0 +1,48 @@
+<div class="view">
+  <form class="rc-filter" (ngSubmit)="search()">
+    <div class="fg"><label class="fl" for="aFrom">Fecha inicio</label><input type="date" class="fi" id="aFrom" name="from" [(ngModel)]="form.from"></div>
+    <div class="fg"><label class="fl" for="aTo">Fecha fin</label><input type="date" class="fi" id="aTo" name="to" [(ngModel)]="form.to"></div>
+    <div class="fg"><label class="fl" for="aAction">Acción</label>
+      <select class="fs" id="aAction" name="action" [(ngModel)]="form.action">
+        <option value="">Todas</option>
+        <option *ngFor="let action of actions" [value]="action.key">{{ action.label }}</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl" for="aActor">Usuario</label>
+      <select class="fs" id="aActor" name="actor" [(ngModel)]="form.actor">
+        <option value="">Todos</option>
+        <option *ngFor="let actor of page()?.actors ?? []" [value]="actor">{{ actor }}</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl" for="aQuery">Buscar</label><input class="fi" id="aQuery" name="q" placeholder="Placa, ticket, cliente..." [(ngModel)]="form.q"></div>
+    <div class="rc-actions">
+      <button class="btn-primary" type="submit" [disabled]="loading()">⌕ {{ loading() ? 'Buscando...' : 'Filtrar' }}</button>
+      <button class="btn-secondary" type="button" (click)="clear()">Limpiar</button>
+      <button class="btn-excel" type="button" (click)="exportCsv()" [disabled]="!page()?.entries?.length">📊 Excel</button>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="card-title">Registro de actividad
+      <span class="card-title-hint" *ngIf="page()?.truncated">se muestran los 500 más recientes; acota las fechas o los filtros</span>
+      <span class="card-title-hint" *ngIf="page() && !page()!.truncated">{{ page()!.entries.length }} registros</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Referencia</th><th>Detalle</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let entry of page()?.entries ?? []; trackBy: trackById">
+            <td class="td-mono sm muted" style="white-space:nowrap">{{ shortDate(dateKey(entry.createdAt)) }} {{ hhmm(entry.createdAt) }}</td>
+            <td style="font-size:12px;font-weight:500">{{ entry.actor || '—' }}</td>
+            <td><span class="chip sm {{ actionMeta(entry.action).cls }}">{{ actionMeta(entry.action).label }}</span></td>
+            <td class="td-mono sm">{{ entry.entityRef || '—' }}</td>
+            <td style="font-size:12px;color:var(--text2)">{{ entry.details || '—' }}</td>
+          </tr>
+          <tr *ngIf="page() && !page()!.entries.length"><td colspan="5" class="empty">No hay actividad registrada con esos filtros</td></tr>
+          <tr *ngIf="!page() && error()"><td colspan="5" class="empty">{{ error() }}</td></tr>
+          <tr *ngIf="!page() && loading()"><td colspan="5" class="empty">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

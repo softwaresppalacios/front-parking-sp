@@ -4,6 +4,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
+import { AuthService } from '../../../core/auth/auth.service';
 import { MonthlySubscription } from '../../../core/models';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import { ToastService } from '../../../core/ui/toast.service';
@@ -13,18 +14,9 @@ import {
   tenantHeaders, tenantIdFromRoute, vehicleMeta, whatsappUrl, writeStorage
 } from '../../../core/utils';
 
-type ClientGroup = {
-  key: string;
-  name: string;
-  document: string;
-  phone: string;
-  plates: string[];
-  typeText: string;
-  amount: number;
-  expiresAt: string;
-  days: number;
-  latest: MonthlySubscription;
-};
+type Status = 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+type Tab = Status;
+type Modal = 'new' | 'edit' | 'renew' | 'cancel' | null;
 
 const DEFAULT_PRICES: Record<string, number> = { CAR: 40000, MOTORCYCLE: 20000, HEAVY: 80000, BICYCLE: 10000 };
 
@@ -40,50 +32,53 @@ export class MonthlyPageComponent {
   private toast = inject(ToastService);
   context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
+  /** Propietario o admin: pueden editar y cancelar. Renovar lo puede hacer cualquier rol. */
+  canManage = inject(AuthService).canManage(this.tenantId);
   vehicleTypes = VEHICLE_TYPES;
   durations = [1, 2, 3, 6, 12];
 
-  modalOpen = signal(false);
-  renewing = signal(false);
+  tab = signal<Tab>('ACTIVE');
+  query = signal('');
+  modal = signal<Modal>(null);
   saving = signal(false);
+  /** Mensualidad sobre la que se edita, renueva o cancela. */
+  selected = signal<MonthlySubscription | null>(null);
+  lastWelcome = signal('');
+
   prices = readStorage<Record<string, number>>(this.pricesKey(), { ...DEFAULT_PRICES });
   form = this.emptyForm();
+  editForm = { customerName: '', customerDocument: '', customerPhone: '', plate: '', vehicleType: 'CAR', amount: 0 };
+  renewForm = { months: 1, amount: 0, paymentMethod: 'CASH', onlineReference: '' };
+  cancelReason = '';
 
-  clients = computed<ClientGroup[]>(() => {
-    const groups = new Map<string, MonthlySubscription[]>();
-    // Solo la mensualidad mas reciente de cada placa cuenta para el cliente.
-    const latestByPlate = new Map<string, MonthlySubscription>();
+  /**
+   * Una tarjeta por placa. Si una placa tiene varias filas (renovaciones antiguas guardadas como filas nuevas),
+   * se muestra la no cancelada con vencimiento mas lejano; si todas estan canceladas, la ultima cancelada.
+   */
+  subscriptions = computed(() => {
+    const byPlate = new Map<string, MonthlySubscription>();
     this.context.subscriptions().forEach(item => {
-      const current = latestByPlate.get(item.plate);
-      if (!current || item.expiresAt > current.expiresAt) latestByPlate.set(item.plate, item);
+      const current = byPlate.get(item.plate);
+      if (!current || this.rank(item) > this.rank(current)) byPlate.set(item.plate, item);
     });
-    latestByPlate.forEach(item => {
-      const key = (item.customerDocument || item.customerName).trim().toLowerCase();
-      groups.set(key, [...(groups.get(key) || []), item]);
-    });
-    return [...groups.entries()].map(([key, items]) => {
-      const sorted = [...items].sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
-      const latest = sorted[0];
-      const types = [...new Set(items.map(item => item.vehicleType))];
-      const typeText = types.length === 1 && items.length > 1
-        ? `${vehicleMeta(types[0]).emoji} × ${items.length} ${vehicleMeta(types[0]).short}s`
-        : types.map(type => `${vehicleMeta(type).emoji} ${vehicleMeta(type).short}`).join(' · ');
-      return {
-        key,
-        name: latest.customerName,
-        document: latest.customerDocument || 'Sin cédula',
-        phone: latest.customerPhone || 'Sin celular',
-        plates: items.map(item => displayPlate(item.plate)),
-        typeText,
-        amount: items.reduce((sum, item) => sum + Number(item.amount || 0), 0),
-        expiresAt: latest.expiresAt,
-        days: daysUntil(latest.expiresAt),
-        latest
-      };
-    }).sort((a, b) => (a.days < 0 ? 1 : 0) - (b.days < 0 ? 1 : 0) || a.days - b.days);
+    return [...byPlate.values()].sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
   });
-  activeClients = computed(() => this.clients().filter(client => client.days >= 0));
-  expiringClients = computed(() => this.activeClients().filter(client => client.days <= 10));
+  counts = computed(() => {
+    const counts: Record<Status, number> = { ACTIVE: 0, EXPIRED: 0, CANCELLED: 0 };
+    this.subscriptions().forEach(item => counts[this.statusOf(item)]++);
+    return counts;
+  });
+  visible = computed(() => {
+    const query = this.query().trim().toUpperCase();
+    const queryPlate = cleanPlate(query);
+    return this.subscriptions()
+      .filter(item => this.statusOf(item) === this.tab())
+      .filter(item => !query
+        || item.customerName.toUpperCase().includes(query)
+        || (queryPlate && item.plate.includes(queryPlate))
+        || (item.customerDocument || '').includes(query));
+  });
+  expiring = computed(() => this.subscriptions().filter(item => this.statusOf(item) === 'ACTIVE' && daysUntil(item.expiresAt) <= 10));
   fixedIncome = computed(() => this.context.activeSubscriptions().reduce((sum, item) => sum + Number(item.amount || 0), 0));
   byType = computed(() => this.vehicleTypes
     .map(type => {
@@ -96,31 +91,23 @@ export class MonthlyPageComponent {
     this.context.refreshSubscriptions();
   }
 
+  statusOf(item: MonthlySubscription): Status {
+    if (item.status) return item.status;
+    if (!item.active && item.cancelledAt) return 'CANCELLED';
+    return daysUntil(item.expiresAt) < 0 ? 'EXPIRED' : 'ACTIVE';
+  }
+
+  days(item: MonthlySubscription) { return daysUntil(item.expiresAt); }
+
+  daysClass(item: MonthlySubscription) {
+    const days = this.days(item);
+    return days <= 3 ? 'exp' : days <= 10 ? 'warn' : 'ok';
+  }
+
+  // ── Nueva ──
   openNew() {
     this.form = this.emptyForm();
-    this.renewing.set(false);
-    this.modalOpen.set(true);
-  }
-
-  renew(client: ClientGroup) {
-    const subscription = client.latest;
-    const nextStart = client.days >= 0 ? parseDateKey(subscription.expiresAt) : new Date();
-    this.form = {
-      ...this.emptyForm(),
-      customerName: subscription.customerName,
-      customerDocument: subscription.customerDocument || '',
-      customerPhone: subscription.customerPhone || '',
-      plate: displayPlate(subscription.plate),
-      vehicleType: subscription.vehicleType,
-      amount: Number(subscription.amount) || this.prices[subscription.vehicleType] || 0,
-      startsAt: dateKey(nextStart)
-    };
-    this.renewing.set(true);
-    this.modalOpen.set(true);
-  }
-
-  closeModal() {
-    if (!this.saving()) this.modalOpen.set(false);
+    this.modal.set('new');
   }
 
   onTypeChange(type: string) {
@@ -138,7 +125,7 @@ export class MonthlyPageComponent {
   }
 
   typeOption(type: string) {
-    return `${vehicleMeta(type).emoji} ${vehicleMeta(type).short} — ${money(this.prices[type] || 0)}/mes`;
+    return `${vehicleMeta(type).emoji} ${vehicleMeta(type).short}`;
   }
 
   save() {
@@ -162,49 +149,175 @@ export class MonthlyPageComponent {
     }, tenantHeaders(this.tenantId)).subscribe({
       // El backend crea la mensualidad y registra su cobro en caja en la misma operacion.
       next: subscription => {
-        this.prices = { ...this.prices, [subscription.vehicleType]: Number(this.form.amount) };
-        writeStorage(this.pricesKey(), this.prices);
+        this.rememberPrice(subscription.vehicleType, Number(this.form.amount));
         this.context.addSubscription(subscription);
         this.toast.ok(`Mensualidad registrada y pago ingresado a caja (${paymentMethodMeta(subscription.paymentMethod).label.toLowerCase()})`);
-        this.sendWelcome(subscription);
-        this.saving.set(false);
-        this.modalOpen.set(false);
+        this.prepareConfirmation(subscription, 'registrada');
+        this.finish('ACTIVE');
       },
-      error: err => {
-        this.toast.err(apiErrorMessage(err, 'No se pudo registrar la mensualidad'));
-        this.saving.set(false);
-      }
+      error: err => this.fail(err, 'No se pudo registrar la mensualidad')
     });
   }
 
-  remind(client: ClientGroup) {
-    const text = [
-      `Hola ${client.name.split(' ')[0]} 👋`,
-      `Te recordamos que tu mensualidad en ${this.context.parkingName()} para ${client.plates.join(', ')} vence el ${shortDate(client.expiresAt)}.`,
-      'Renuévala para seguir disfrutando tu espacio. ¡Gracias! 🅿️'
-    ].join('\n');
-    window.open(whatsappUrl(client.latest.customerPhone, text), '_blank');
-    this.toast.ok(`Recordatorio enviado a ${client.name.split(' ')[0]} por WhatsApp`, '📲');
+  // ── Editar ──
+  openEdit(item: MonthlySubscription) {
+    this.selected.set(item);
+    this.editForm = {
+      customerName: item.customerName,
+      customerDocument: item.customerDocument || '',
+      customerPhone: item.customerPhone || '',
+      plate: displayPlate(item.plate),
+      vehicleType: item.vehicleType,
+      amount: Number(item.amount) || 0
+    };
+    this.modal.set('edit');
   }
 
-  daysClass(days: number) { return days <= 3 ? 'exp' : days <= 10 ? 'warn' : 'ok'; }
+  onEditPlateChange(value: string) { this.editForm.plate = formatPlate(value); }
+
+  saveEdit() {
+    const item = this.selected();
+    if (!item) return;
+    const plate = cleanPlate(this.editForm.plate);
+    if (!this.editForm.customerName.trim()) { this.toast.err('Ingrese el nombre del cliente'); return; }
+    if (plate.length < 5) { this.toast.err('Ingrese una placa válida'); return; }
+    if (!(Number(this.editForm.amount) >= 0)) { this.toast.err('Ingrese el valor mensual'); return; }
+    this.saving.set(true);
+    this.http.put<MonthlySubscription>(`${API.operation}/monthly-subscriptions/${item.uuid}`, {
+      customerName: this.editForm.customerName.trim(),
+      customerDocument: this.editForm.customerDocument.trim(),
+      customerPhone: this.editForm.customerPhone.trim(),
+      plate,
+      vehicleType: this.editForm.vehicleType,
+      amount: Number(this.editForm.amount)
+    }, tenantHeaders(this.tenantId)).subscribe({
+      next: updated => {
+        this.context.replaceSubscription(updated);
+        this.toast.ok(`Mensualidad de ${displayPlate(updated.plate)} actualizada`);
+        this.finish();
+      },
+      error: err => this.fail(err, 'No se pudo actualizar la mensualidad')
+    });
+  }
+
+  // ── Renovar ──
+  openRenew(item: MonthlySubscription) {
+    this.selected.set(item);
+    this.renewForm = { months: 1, amount: Number(item.amount) || 0, paymentMethod: 'CASH', onlineReference: '' };
+    this.modal.set('renew');
+  }
+
+  onRenewMonthsChange(months: number) {
+    this.renewForm.months = months;
+    this.renewForm.amount = (Number(this.selected()?.amount) || 0) * months;
+  }
+
+  /** Periodo que cubrira la renovacion: desde el vencimiento si sigue vigente, desde hoy si ya vencio. */
+  renewPeriod() {
+    const item = this.selected();
+    if (!item) return { from: '', to: '' };
+    const from = this.days(item) < 0 ? new Date() : parseDateKey(item.expiresAt);
+    const to = new Date(from);
+    to.setMonth(to.getMonth() + (Number(this.renewForm.months) || 1));
+    return { from: dateKey(from), to: dateKey(to) };
+  }
+
+  saveRenew() {
+    const item = this.selected();
+    if (!item) return;
+    if (!(Number(this.renewForm.amount) > 0)) { this.toast.err('Ingrese el valor a cobrar'); return; }
+    this.saving.set(true);
+    this.http.post<MonthlySubscription>(`${API.operation}/monthly-subscriptions/${item.uuid}/renew`, {
+      months: Number(this.renewForm.months) || 1,
+      amount: Number(this.renewForm.amount),
+      paymentMethod: this.renewForm.paymentMethod,
+      onlineReference: this.renewForm.paymentMethod === 'ONLINE' ? this.renewForm.onlineReference.trim() || null : null
+    }, tenantHeaders(this.tenantId)).subscribe({
+      next: renewed => {
+        this.context.replaceSubscription(renewed);
+        this.toast.ok(`Mensualidad de ${displayPlate(renewed.plate)} renovada hasta el ${shortDate(renewed.expiresAt)} · ${money(this.renewForm.amount)} a caja`);
+        this.prepareConfirmation(renewed, 'renovada');
+        this.finish('ACTIVE');
+      },
+      error: err => this.fail(err, 'No se pudo renovar la mensualidad')
+    });
+  }
+
+  // ── Cancelar ──
+  openCancel(item: MonthlySubscription) {
+    this.selected.set(item);
+    this.cancelReason = '';
+    this.modal.set('cancel');
+  }
+
+  confirmCancel() {
+    const item = this.selected();
+    if (!item) return;
+    this.saving.set(true);
+    this.http.post<MonthlySubscription>(`${API.operation}/monthly-subscriptions/${item.uuid}/cancel`, {
+      reason: this.cancelReason.trim() || null
+    }, tenantHeaders(this.tenantId)).subscribe({
+      next: cancelled => {
+        this.context.replaceSubscription(cancelled);
+        this.toast.ok(`Mensualidad de ${displayPlate(cancelled.plate)} cancelada`);
+        this.finish();
+      },
+      error: err => this.fail(err, 'No se pudo cancelar la mensualidad')
+    });
+  }
+
+  closeModal() {
+    if (!this.saving()) this.modal.set(null);
+  }
+
+  remind(item: MonthlySubscription) {
+    const first = item.customerName.split(' ')[0];
+    const text = [
+      `Hola ${first} 👋`,
+      `Te recordamos que tu mensualidad en ${this.context.parkingName()} para ${displayPlate(item.plate)} vence el ${shortDate(item.expiresAt)}.`,
+      'Renuévala para seguir disfrutando tu espacio. ¡Gracias! 🅿️'
+    ].join('\n');
+    window.open(whatsappUrl(item.customerPhone, text), '_blank');
+    this.toast.ok(`Recordatorio abierto en WhatsApp para ${first}`, '📲');
+  }
+
   shortDate = shortDate;
   money = money;
+  plate = displayPlate;
+  meta = vehicleMeta;
+  methodLabel = (method?: string) => paymentMethodMeta(method).label;
 
-  private sendWelcome(subscription: MonthlySubscription) {
+  /** Mayor prioridad: no cancelada; entre iguales, la que vence mas tarde. */
+  private rank(item: MonthlySubscription) {
+    return (this.statusOf(item) === 'CANCELLED' ? 0 : 1e10) + parseDateKey(item.expiresAt).getTime() / 1e5;
+  }
+
+  private finish(tab?: Tab) {
+    this.saving.set(false);
+    this.modal.set(null);
+    if (tab) this.tab.set(tab);
+  }
+
+  private fail(err: unknown, fallback: string) {
+    this.toast.err(apiErrorMessage(err as { status?: number; error?: { message?: string } }, fallback));
+    this.saving.set(false);
+  }
+
+  private rememberPrice(type: string, amount: number) {
+    this.prices = { ...this.prices, [type]: amount };
+    writeStorage(this.pricesKey(), this.prices);
+  }
+
+  private prepareConfirmation(subscription: MonthlySubscription, action: 'registrada' | 'renovada') {
     if (!subscription.customerPhone) return;
     const text = [
       '🅿️ *SP Parqueaderos*',
-      `Mensualidad registrada en ${this.context.parkingName()}`,
+      `Mensualidad ${action} en ${this.context.parkingName()}`,
       `Placa: ${displayPlate(subscription.plate)}`,
-      `Vigencia: ${shortDate(subscription.startsAt)} al ${shortDate(subscription.expiresAt)}`,
-      `Valor: ${money(subscription.amount)}`
+      `Vigencia: ${shortDate(subscription.startsAt)} al ${shortDate(subscription.expiresAt)}`
     ].join('\n');
-    window.setTimeout(() => this.toast.info('Abre WhatsApp para enviar la confirmación al cliente', '📲'), 800);
     this.lastWelcome.set(whatsappUrl(subscription.customerPhone, text));
   }
-
-  lastWelcome = signal('');
 
   private emptyForm() {
     return {

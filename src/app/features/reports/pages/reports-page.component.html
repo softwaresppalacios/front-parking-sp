@@ -13,58 +13,91 @@
           <option value="BICYCLE">Bicicletas</option>
         </select>
       </div>
-      <button class="btn-primary" type="submit">↗ Generar</button>
+      <button class="btn-primary" type="submit" [disabled]="loading()">↗ {{ loading() ? 'Generando...' : 'Generar' }}</button>
+      <button class="btn-excel" type="button" (click)="exportCsv()" [disabled]="!report()">📊 Excel</button>
       <button class="btn-secondary" type="button" (click)="print()">↓ PDF</button>
     </div>
   </form>
 
-  <div class="stats-row mb20">
-    <div class="stat-card green"><div class="stat-label">Total recaudado</div><div class="stat-value">{{ compact(totalRevenue()) }}</div><div class="stat-sub">{{ rangeLabel() }}</div></div>
-    <div class="stat-card blue"><div class="stat-label">Vehículos atendidos</div><div class="stat-value">{{ inRange().length }}</div><div class="stat-sub">{{ (inRange().length / days()) | number:'1.0-1' }} promedio/día</div></div>
-    <div class="stat-card red"><div class="stat-label">Ticket promedio</div><div class="stat-value">{{ money(averageTicket()) }}</div><div class="stat-sub">por vehículo</div></div>
-    <div class="stat-card amber"><div class="stat-label">Mensualidades</div><div class="stat-value">{{ compact(activeMonthlyAmount()) }}</div><div class="stat-sub">{{ activeMonthly().length }} clientes activos</div></div>
+  <div class="card mb20" *ngIf="error() && !report()">
+    <div class="empty-state" style="padding:30px">
+      <div class="icon">⚠</div>
+      <div class="title">No se pudo generar el reporte</div>
+      <div class="text">{{ error() }}</div>
+    </div>
   </div>
 
-  <div class="g2 mb20">
-    <div class="card">
-      <div class="card-title">Ingresos diarios ({{ monthLabel() }})</div>
-      <div class="chart-bars tall">
-        <div class="cbar-wrap" *ngFor="let bar of daily()" [title]="shortDate(bar.key) + ': ' + money(bar.value)">
-          <div class="cbar green" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
-          <div class="cbar-lbl">{{ bar.label }}</div>
+  <ng-container *ngIf="totals() as totals">
+    <div class="stats-row mb20">
+      <div class="stat-card green"><div class="stat-label">Total recaudado</div><div class="stat-value">{{ compact(totals.revenue) }}</div><div class="stat-sub">{{ rangeLabel() }}</div></div>
+      <div class="stat-card blue"><div class="stat-label">Vehículos atendidos</div><div class="stat-value">{{ totals.entries }}</div><div class="stat-sub">{{ (totals.entries / totals.days) | number:'1.0-1' }} promedio/día · {{ totals.stillInside }} aún adentro</div></div>
+      <div class="stat-card red"><div class="stat-label">Ticket promedio</div><div class="stat-value">{{ money(totals.averageTicket) }}</div><div class="stat-sub">{{ totals.paidExits }} salidas cobradas · estadía {{ durationText(totals.averageStayMinutes) }}</div></div>
+      <div class="stat-card amber"><div class="stat-label">Mensualidades</div><div class="stat-value">{{ compact(totals.monthlyRevenue) }}</div><div class="stat-sub">{{ totals.monthlySales }} ventas/renovaciones · {{ totals.monthlyEntries }} entradas</div></div>
+    </div>
+
+    <div class="g2 mb20">
+      <div class="card">
+        <div class="card-title">Ingresos diarios <span class="card-title-hint" *ngIf="chartTrimmed()">últimos 31 días del rango</span></div>
+        <div class="chart-bars tall">
+          <div class="cbar-wrap" *ngFor="let bar of chart()" [title]="shortDate(bar.key) + ': ' + money(bar.value) + ' · ' + bar.entries + ' entradas'">
+            <div class="cbar green" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
+            <div class="cbar-lbl">{{ bar.label }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Por tipo de vehículo</div>
+        <div style="padding:8px 0">
+          <ng-container *ngFor="let row of byType()">
+            <div class="dist-row"><span>{{ row.label }} · {{ row.entries }} entradas</span><span [style.color]="row.color">{{ money(row.revenue) }} — {{ row.pct }}%</span></div>
+            <div class="pbar"><div class="pfill {{ row.fill }}" [style.width.%]="row.pct"></div></div>
+          </ng-container>
+          <div class="empty-note" *ngIf="!byType().length">Sin movimientos en el período.</div>
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">Por tipo de vehículo</div>
-      <div style="padding:8px 0">
-        <ng-container *ngFor="let row of byType()">
-          <div class="dist-row"><span>{{ row.label }}</span><span [style.color]="row.color">{{ money(row.value) }} — {{ row.pct }}%</span></div>
-          <div class="pbar"><div class="pfill {{ row.fill }}" [style.width.%]="row.pct"></div></div>
-        </ng-container>
+
+    <div class="g2 mb20">
+      <div class="card">
+        <div class="card-title">Por método de pago</div>
+        <div class="calc-row"><span>💵 Efectivo</span><span>{{ money(totals.cashRevenue) }}</span></div>
+        <div class="calc-row"><span>🌐 En línea</span><span>{{ money(totals.onlineRevenue) }}</span></div>
+        <div class="pbar" style="margin-top:10px"><div class="pfill green" [style.width.%]="methodPct()"></div></div>
+        <div class="form-hint" style="margin-top:4px">{{ methodPct() }}% en efectivo</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Por cajero</div>
+        <div class="calc-row plain" *ngFor="let row of report()!.byCashier"><span>{{ row.name }} · {{ row.payments }} cobros</span><span>{{ money(row.amount) }}</span></div>
+        <div class="empty-note" *ngIf="!report()!.byCashier.length">Sin cobros en el período.</div>
       </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="card-title">Detalle de Registros <span class="card-title-hint">{{ tickets().length }} registros guardados en este navegador</span></div>
-    <div class="tbl-wrap">
-      <table class="tbl">
-        <thead><tr><th>Fecha</th><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Pago</th><th>Valor</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let ticket of detail()">
-            <td class="td-mono sm muted">{{ shortDate(dateKey(ticket.checkedOutAt || ticket.checkedInAt)) }}</td>
-            <td><span class="plate">{{ plate(ticket.plate) }}</span></td>
-            <td><span class="tbadge {{ meta(ticket.vehicleType).cls }}">{{ meta(ticket.vehicleType).emoji }} {{ meta(ticket.vehicleType).short }}</span></td>
-            <td class="td-mono sm">{{ hhmm(ticket.checkedInAt) }}</td>
-            <td class="td-mono sm">{{ hhmm(ticket.checkedOutAt) }}</td>
-            <td class="td-mono sm muted">{{ duration(ticket) }}</td>
-            <td><span class="chip sm {{ method(ticket).cls }}">{{ method(ticket).label }}</span></td>
-            <td class="td-money">{{ ticket.monthlySubscription ? 'Mensual' : money(ticket.amountDue || 0) }}</td>
-          </tr>
-          <tr *ngIf="!detail().length"><td colspan="8" class="empty">No hay registros cerrados en el período seleccionado</td></tr>
-        </tbody>
-      </table>
+    <div class="card">
+      <div class="card-title">Detalle de cobros
+        <span class="card-title-hint" *ngIf="report()!.paymentsTruncated">se muestran los 1.000 más recientes; exporta a Excel o acota el rango</span>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>Fecha</th><th>Concepto</th><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Pago</th><th>Cobró</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let row of report()!.payments">
+              <td class="td-mono sm muted">{{ shortDate(dateKey(row.paidAt)) }} {{ hhmm(row.paidAt) }}</td>
+              <td><span class="chip sm" [class.amber]="row.concept === 'MONTHLY'" [class.blue]="row.concept !== 'MONTHLY'">{{ row.concept === 'MONTHLY' ? 'Mensualidad' : 'Parqueo' }}</span></td>
+              <td><span class="plate">{{ plate(row.plate) || '—' }}</span></td>
+              <td><span class="tbadge {{ meta(row.vehicleType || 'CAR').cls }}" *ngIf="row.vehicleType">{{ meta(row.vehicleType).emoji }} {{ meta(row.vehicleType).short }}</span></td>
+              <td class="td-mono sm">{{ row.checkedInAt ? hhmm(row.checkedInAt) : '—' }}</td>
+              <td class="td-mono sm">{{ row.checkedOutAt ? hhmm(row.checkedOutAt) : '—' }}</td>
+              <td class="td-mono sm muted">{{ duration(row) }}</td>
+              <td><span class="chip sm {{ methodMeta(row.method).cls }}">{{ methodMeta(row.method).label }}</span></td>
+              <td style="font-size:12px">{{ row.registeredByName || '—' }}</td>
+              <td class="td-money">{{ money(row.amount) }}</td>
+            </tr>
+            <tr *ngIf="!report()!.payments.length"><td colspan="10" class="empty">No hay cobros en el período seleccionado</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-  </div>
+  </ng-container>
+
+  <div class="loading-note" *ngIf="loading() && !report()">Generando reporte...</div>
 </div>

@@ -96,6 +96,11 @@ export class ParkingContextService {
     this.subscriptions.update(items => [subscription, ...items]);
   }
 
+  /** Reemplaza una mensualidad editada, renovada o cancelada. */
+  replaceSubscription(subscription: MonthlySubscription) {
+    this.subscriptions.update(items => items.map(item => item.uuid === subscription.uuid ? subscription : item));
+  }
+
   rule(type: string) {
     return this.rules().find(item => item.vehicleType === type);
   }

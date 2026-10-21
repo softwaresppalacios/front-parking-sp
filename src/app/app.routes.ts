@@ -11,6 +11,7 @@ import { MonthlyPageComponent } from './features/monthly/pages/monthly-page.comp
 import { EntryPageComponent } from './features/operation/entry/entry-page.component';
 import { ExitPageComponent } from './features/operation/exit/exit-page.component';
 import { ReportsPageComponent } from './features/reports/pages/reports-page.component';
+import { AuditPageComponent } from './features/audit/pages/audit-page.component';
 import { TenantBoardComponent } from './features/tenant/tenant-board/tenant-board.component';
 import { ParkingShellComponent } from './layout/parking-shell/parking-shell.component';
 
@@ -33,6 +34,7 @@ export const routes: Routes = [
       { path: 'mensualidades', component: MonthlyPageComponent, data: { title: 'Mensualidades' } },
       { path: 'reportes', component: ReportsPageComponent, canActivate: [manageGuard], data: { title: 'Reportes' } },
       { path: 'reportes-caja', component: CashReportsPageComponent, canActivate: [manageGuard], data: { title: 'Reportes de Caja' } },
+      { path: 'auditoria', component: AuditPageComponent, canActivate: [manageGuard], data: { title: 'Auditoría' } },
       { path: 'config', component: ConfigPageComponent, canActivate: [manageGuard], data: { title: 'Configuración' } },
       { path: 'config/:section', redirectTo: 'config' }
     ]

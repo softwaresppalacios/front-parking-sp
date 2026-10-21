@@ -334,6 +334,7 @@ a{color:inherit;}
 .calc-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--text2);border-bottom:1px solid var(--border);}
 .calc-row:last-child{border-bottom:none;color:var(--text);font-weight:600;font-size:15px;}
 .calc-row:last-child .cv{color:var(--green);font-family:var(--fh);font-size:22px;}
+.calc-row.plain:last-child{color:var(--text2);font-weight:400;font-size:13px;}
 .calc-row .cv.big{font-size:24px;}
 .pay-methods{display:flex;gap:10px;margin-top:14px;}
 .pay-method{flex:1;padding:12px;border-radius:8px;border:2px solid var(--border);background:var(--bg);cursor:pointer;text-align:center;transition:all .15s;font-family:var(--fh);font-size:15px;font-weight:600;color:var(--text2);}
@@ -385,6 +386,20 @@ a{color:inherit;}
 .due-card.exp .due-name{color:var(--red);}
 .due-meta{font-size:11px;color:var(--text3);font-family:var(--fm);margin-top:2px;}
 .btn-wa{margin-top:8px;padding:4px 10px;font-size:11px;letter-spacing:0;}
+
+.list-tools{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap;}
+.tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:3px;}
+.tab{background:transparent;border:none;border-radius:6px;padding:6px 12px;font-family:var(--fh);font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;display:flex;align-items:center;gap:6px;}
+.tab:hover{color:var(--text);}
+.tab.active{background:var(--red-light);color:var(--red);}
+.tab .count{font-family:var(--fm);font-size:10px;background:var(--bg);border-radius:10px;padding:1px 6px;color:var(--text2);}
+.tab.active .count{background:#fff;color:var(--red);}
+.list-tools .fi{flex:1;min-width:180px;padding:7px 12px;font-size:12px;}
+.client-card.static{cursor:default;}
+.client-card.cancelled{opacity:.7;}
+.cli-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.cli-note{font-size:11px;color:var(--text3);font-family:var(--fm);margin-top:6px;}
+.warn-box{background:var(--amber-bg);border:1px solid rgba(217,119,6,.25);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--amber);}
 
 /* ══ PROGRESS ══ */
 .pbar{background:var(--border);border-radius:4px;height:5px;overflow:hidden;margin-top:6px;}
