@@ -59,6 +59,7 @@
         <button class="btn-primary green btn-block" style="margin-top:14px" (click)="confirm()" [disabled]="paying()">
           ↑ {{ paying() ? 'Registrando...' : (ticket.monthlySubscription ? 'Confirmar Salida' : 'Confirmar Salida y Cobro') }}
         </button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" type="button" (click)="reprint()" [disabled]="paying()">🖨 Reimprimir ticket de entrada</button>
         <button class="btn btn-ghost" style="width:100%;margin-top:8px" type="button" (click)="cancel()" [disabled]="paying()">Cancelar</button>
       </div>
       <div class="ticket">

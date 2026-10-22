@@ -99,8 +99,24 @@
           <div class="t-row" *ngIf="!showsHelmetLockers()"><span class="t-key">Tablero llaves</span><span class="t-val">{{ selectedKeySlot || '—' }}</span></div>
           <div class="t-row" *ngIf="showsHelmetLockers()"><span class="t-key">{{ selectedHelmetLockers.length > 1 ? 'Casilleros casco' : 'Casillero casco' }}</span><span class="t-val">{{ helmetText() }}</span></div>
           <div class="t-row" *ngIf="monthlyUuid"><span class="t-key">Modalidad</span><span class="t-val" style="color:var(--amber)">⭐ Mensualidad</span></div>
-          <div class="t-qr"><div class="qr-ph">▦</div><div class="t-code">{{ ticketCode() }}</div></div>
+          <div class="t-qr"><div class="t-code">{{ ticketCode() }}</div></div>
         </div>
+      </div>
+      <div class="card mb16">
+        <div class="card-title">Ticket impreso</div>
+        <label class="toggle-row" style="margin-bottom:8px">
+          <span style="font-size:11px;color:var(--text3)">Imprimir siempre al registrar una entrada</span>
+          <span class="toggle"><input type="checkbox" [ngModel]="autoPrint" (ngModelChange)="onAutoPrintChange($event)"><span class="tog-slider"></span></span>
+        </label>
+        <ng-container *ngIf="lastTicket() as last; else noTicketToPrint">
+          <div class="warn-box" style="margin-bottom:8px" *ngIf="!last.whatsapp?.sent">
+            ⚠ El ticket de {{ last.ticket.plate }} no llegó al celular del conductor. Imprímelo y entrégaselo.
+          </div>
+          <button type="button" class="btn-primary btn-block" style="font-size:14px;padding:10px" (click)="printLast()">🖨 Imprimir ticket de {{ last.ticket.plate }}</button>
+        </ng-container>
+        <ng-template #noTicketToPrint>
+          <div class="form-hint">Al registrar una entrada podrás imprimir su ticket para entregarlo al conductor.</div>
+        </ng-template>
       </div>
       <div class="card">
         <div class="card-title">WhatsApp al conductor</div>

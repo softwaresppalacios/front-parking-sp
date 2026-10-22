@@ -1,10 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { API } from '../../../core/api/api.config';
 import { DashboardSummary, Resource, ResourceBoard, Ticket, TodayCashSummary } from '../../../core/models';
-import { LocalHistoryService } from '../../../core/state/local-history.service';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
 import {
   dateKey, displayPlate, durationText, estimateAmount, helmetLockersOf, hhmm, minutesBetween, money, tenantHeaders, tenantIdFromRoute, vehicleMeta
@@ -22,13 +21,13 @@ export class DashboardPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
-  private history = inject(LocalHistoryService);
   context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
 
   summary = signal<DashboardSummary | null>(null);
   activeTickets = signal<Ticket[]>([]);
   recentTickets = signal<Ticket[]>([]);
+  weekTickets = signal<Ticket[]>([]);
   cash = signal<TodayCashSummary | null>(null);
   board = signal<ResourceBoard | null>(null);
   now = signal(new Date());
@@ -43,7 +42,8 @@ export class DashboardPageComponent {
 
   todayTickets = computed(() => {
     const today = dateKey(this.now());
-    const known = new Map(this.history.tickets(this.tenantId).map(ticket => [ticket.uuid, ticket as Ticket]));
+    // Tickets de la ultima semana (servidor): incluye salidas de hoy de vehiculos que entraron dias antes.
+    const known = new Map(this.weekTickets().map(ticket => [ticket.uuid, ticket]));
     [...this.recentTickets(), ...this.activeTickets()].forEach(ticket => known.set(ticket.uuid, ticket));
     return [...known.values()].filter(ticket => dateKey(ticket.checkedInAt) === today || (ticket.checkedOutAt && dateKey(ticket.checkedOutAt) === today));
   });
@@ -86,9 +86,13 @@ export class DashboardPageComponent {
     this.http.get<DashboardSummary>(`${API.reporting}/dashboards/current`, headers).subscribe({ next: v => this.summary.set(v), error: () => this.summary.set(null) });
     this.http.get<Ticket[]>(`${API.operation}/tickets/active`, headers).subscribe({ next: v => this.activeTickets.set(v), error: () => this.activeTickets.set([]) });
     this.http.get<Ticket[]>(`${API.operation}/tickets/recent`, headers).subscribe({
-      next: v => { this.recentTickets.set(v); this.history.mergeTickets(this.tenantId, v); },
+      next: v => this.recentTickets.set(v),
       error: () => this.recentTickets.set([])
     });
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    const params = new HttpParams().set('from', dateKey(weekAgo)).set('to', dateKey(new Date()));
+    this.http.get<Ticket[]>(`${API.operation}/tickets/history`, { ...headers, params }).subscribe({ next: v => this.weekTickets.set(v), error: () => this.weekTickets.set([]) });
     this.http.get<TodayCashSummary>(`${API.payment}/payments/today`, headers).subscribe({ next: v => this.cash.set(v), error: () => this.cash.set(null) });
     this.http.get<ResourceBoard>(`${API.operation}/resources/board`, headers).subscribe({ next: v => this.board.set(v), error: () => this.board.set(null) });
     this.now.set(new Date());

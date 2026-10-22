@@ -6,6 +6,7 @@ import { ActivatedRoute } from '@angular/router';
 import { API } from '../../../core/api/api.config';
 import { PaymentMethod, PricingCalculation, Ticket } from '../../../core/models';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
+import { TicketPrinterService } from '../../../core/ui/ticket-printer.service';
 import { ToastService } from '../../../core/ui/toast.service';
 import {
   apiErrorMessage, cleanPlate, estimateCharge, helmetLockersOf, displayPlate, durationText, formatPlate, hhmm, minutesBetween, money, paymentMethodMeta, tenantHeaders, tenantIdFromRoute, vehicleMeta
@@ -21,6 +22,7 @@ export class ExitPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
+  private printer = inject(TicketPrinterService);
   context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
 
@@ -130,6 +132,12 @@ export class ExitPageComponent {
     if (!ticket || this.paying()) return;
     this.paying.set(true);
     this.checkOut(ticket);
+  }
+
+  /** Reimprime el ticket de entrada (por ejemplo, si el conductor lo perdio). */
+  reprint() {
+    const ticket = this.found();
+    if (ticket) this.printer.print(ticket, { reprint: true });
   }
 
   cancel() {

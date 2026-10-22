@@ -12,6 +12,7 @@ import { EntryPageComponent } from './features/operation/entry/entry-page.compon
 import { ExitPageComponent } from './features/operation/exit/exit-page.component';
 import { ReportsPageComponent } from './features/reports/pages/reports-page.component';
 import { AuditPageComponent } from './features/audit/pages/audit-page.component';
+import { TicketHistoryPageComponent } from './features/tickets/pages/ticket-history-page.component';
 import { TenantBoardComponent } from './features/tenant/tenant-board/tenant-board.component';
 import { ParkingShellComponent } from './layout/parking-shell/parking-shell.component';
 
@@ -32,6 +33,7 @@ export const routes: Routes = [
       { path: 'salida', component: ExitPageComponent, data: { title: 'Registrar Salida' } },
       { path: 'caja', component: CashPageComponent, data: { title: 'Caja del Día' } },
       { path: 'mensualidades', component: MonthlyPageComponent, data: { title: 'Mensualidades' } },
+      { path: 'historial-tickets', component: TicketHistoryPageComponent, data: { title: 'Historial de Tickets' } },
       { path: 'reportes', component: ReportsPageComponent, canActivate: [manageGuard], data: { title: 'Reportes' } },
       { path: 'reportes-caja', component: CashReportsPageComponent, canActivate: [manageGuard], data: { title: 'Reportes de Caja' } },
       { path: 'auditoria', component: AuditPageComponent, canActivate: [manageGuard], data: { title: 'Auditoría' } },

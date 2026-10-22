@@ -6,8 +6,8 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { API } from '../../../core/api/api.config';
 import { AuthService } from '../../../core/auth/auth.service';
 import { CheckInResponse, MonthlySubscription, Resource, ResourceBoard, Ticket, WhatsappChannel, WhatsappStatus } from '../../../core/models';
-import { LocalHistoryService } from '../../../core/state/local-history.service';
 import { ParkingContextService } from '../../../core/state/parking-context.service';
+import { TicketPrinterService } from '../../../core/ui/ticket-printer.service';
 import { ToastService } from '../../../core/ui/toast.service';
 import {
   apiErrorMessage, VEHICLE_TYPES, cleanPlate, displayPlate, formatPlate, hhmm, shortDate, tenantHeaders, tenantIdFromRoute, usesCompactSpace, vehicleMeta, whatsappUrl
@@ -23,7 +23,9 @@ export class EntryPageComponent {
   private http = inject(HttpClient);
   private route = inject(ActivatedRoute);
   private toast = inject(ToastService);
-  private history = inject(LocalHistoryService);
+  private printer = inject(TicketPrinterService);
+  /** Imprimir el ticket cada vez que se registra una entrada (preferencia de este navegador). */
+  autoPrint = this.printer.autoPrint();
   context = inject(ParkingContextService);
   tenantId = tenantIdFromRoute(this.route);
   vehicleTypes = VEHICLE_TYPES;
@@ -192,10 +194,15 @@ export class EntryPageComponent {
       monthlySubscription: !!this.monthlyUuid
     }, tenantHeaders(this.tenantId)).subscribe({
       next: ({ ticket, whatsapp }) => {
-        this.history.mergeTickets(this.tenantId, [ticket]);
         this.lastTicket.set({ ticket, phone, whatsapp });
         this.toast.ok(`Vehículo ${displayPlate(ticket.plate)} registrado exitosamente`);
         if (whatsapp) window.setTimeout(() => this.announceWhatsapp(whatsapp, phone), 900);
+        if (this.autoPrint) {
+          this.printer.print(ticket);
+        } else if (!whatsapp?.sent) {
+          // Sin ticket en el celular: el conductor necesita el impreso.
+          window.setTimeout(() => this.toast.info('El ticket no llegó al celular: imprímelo para entregarlo al conductor', '🖨'), 1600);
+        }
         this.resetForm();
         this.loadBoard();
         this.saving.set(false);
@@ -208,6 +215,17 @@ export class EntryPageComponent {
   }
 
   /** Reenvia la plantilla desde la linea de WhatsApp del parqueadero (Meta). */
+  /** Imprime el ticket de la ultima entrada registrada. */
+  printLast() {
+    const last = this.lastTicket();
+    if (last) this.printer.print(last.ticket);
+  }
+
+  onAutoPrintChange(value: boolean) {
+    this.autoPrint = value;
+    this.printer.setAutoPrint(value);
+  }
+
   resendWhatsapp() {
     const last = this.lastTicket();
     if (!last || this.resending()) return;
