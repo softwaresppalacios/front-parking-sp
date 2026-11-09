@@ -5,6 +5,7 @@
         <div class="meta">{{ counts().ACTIVE }} vigentes · {{ expiring().length }} vencen pronto · {{ counts().EXPIRED }} vencidas</div>
         <div style="display:flex;gap:8px">
           <a class="btn btn-g sm" style="text-decoration:none;align-self:center" *ngIf="lastWelcome()" [href]="lastWelcome()" target="_blank" (click)="lastWelcome.set('')">📲 Enviar confirmación</a>
+          <a class="btn btn-ghost sm" style="text-decoration:none;align-self:center" *ngIf="manualReminder()" [href]="manualReminder()" target="_blank" (click)="manualReminder.set('')">📲 Recordar desde mi WhatsApp</a>
           <button class="btn-primary" (click)="openNew()">+ Nueva Mensualidad</button>
         </div>
       </div>
@@ -34,10 +35,14 @@
           </div>
           <div class="cli-note" *ngIf="statusOf(item) === 'CANCELLED' && item.cancelReason">Motivo: {{ item.cancelReason }}</div>
           <div class="cli-note" *ngIf="item.renewedAt && statusOf(item) !== 'CANCELLED'">Última renovación: {{ shortDate(item.renewedAt) }}</div>
+          <ng-container *ngIf="statusOf(item) !== 'CANCELLED'">
+            <div class="cli-note" *ngIf="item.reminderSentAt">📲 Recordatorio enviado por WhatsApp el {{ shortDate(dateKey(item.reminderSentAt)) }} {{ hhmm(item.reminderSentAt) }}</div>
+            <div class="cli-note" style="color:var(--red)" *ngIf="!item.reminderSentAt && item.reminderError">⚠ Recordatorio no enviado: {{ item.reminderError }}</div>
+          </ng-container>
           <div class="cli-actions" *ngIf="statusOf(item) !== 'CANCELLED'">
             <button type="button" class="btn btn-g sm" (click)="openRenew(item)">↻ Renovar</button>
             <button type="button" class="btn btn-ghost sm" *ngIf="canManage" (click)="openEdit(item)">✎ Editar</button>
-            <button type="button" class="btn btn-ghost sm" *ngIf="item.customerPhone && days(item) <= 10" (click)="remind(item)">📲 Recordar</button>
+            <button type="button" class="btn btn-ghost sm" *ngIf="item.customerPhone && days(item) <= 10" (click)="remind(item)" [disabled]="reminding() === item.uuid">📲 {{ reminding() === item.uuid ? 'Enviando...' : 'Recordar' }}</button>
             <button type="button" class="btn btn-ghost sm" style="color:var(--red)" *ngIf="canManage" (click)="openCancel(item)">✕ Cancelar</button>
           </div>
         </div>
@@ -79,13 +84,14 @@
         <div style="display:flex;flex-direction:column;gap:8px">
           <div class="due-card" *ngFor="let item of expiring()" [class.exp]="days(item) <= 3">
             <div class="due-name">{{ item.customerName }}</div>
-            <div class="due-meta">{{ plate(item.plate) }} · Vence {{ shortDate(item.expiresAt) }} · {{ days(item) }} {{ days(item) === 1 ? 'día' : 'días' }}</div>
+            <div class="due-meta">{{ plate(item.plate) }} · Vence {{ shortDate(item.expiresAt) }} · {{ days(item) }} {{ days(item) === 1 ? 'día' : 'días' }}{{ item.reminderSentAt ? ' · ✓ recordado' : '' }}</div>
             <div style="display:flex;gap:6px">
               <button class="btn btn-g btn-wa" (click)="openRenew(item)">↻ Renovar</button>
-              <button class="btn btn-ghost btn-wa" (click)="remind(item)" [disabled]="!item.customerPhone">📲 Recordar</button>
+              <button class="btn btn-ghost btn-wa" (click)="remind(item)" [disabled]="!item.customerPhone || reminding() === item.uuid">📲 Recordar</button>
             </div>
           </div>
           <div class="empty-note" *ngIf="!expiring().length">Ninguna mensualidad vence en los próximos 10 días.</div>
+          <div class="form-hint">El recordatorio por WhatsApp se envía solo cuando faltan 5 días o menos para el vencimiento.</div>
         </div>
       </div>
     </div>
@@ -124,7 +130,7 @@
         </div>
       </div>
       <div class="form-grid-2">
-        <div class="fg"><label class="fl" for="nStart">Fecha inicio</label><input type="date" class="fi" id="nStart" name="start" [(ngModel)]="form.startsAt"></div>
+        <div class="fg"><label class="fl" for="nStart">Fecha inicio</label><input type="date" class="fi" id="nStart" name="start" [min]="today()" [(ngModel)]="form.startsAt"></div>
         <div class="fg"><label class="fl" for="nEnd">Fecha fin</label><input type="date" class="fi" id="nEnd" name="end" [value]="endDate()" disabled></div>
       </div>
     </div>

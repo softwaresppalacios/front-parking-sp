@@ -135,6 +135,10 @@ export type MonthlySubscription = {
   renewedAt?: string | null;
   cancelledAt?: string | null;
   cancelReason?: string | null;
+  /** Recordatorio de vencimiento por WhatsApp del periodo actual (automatico 5 dias antes, o manual). */
+  reminderSentAt?: string | null;
+  /** Error del ultimo intento de recordatorio; el servidor reintenta solo cada hora. */
+  reminderError?: string | null;
 };
 
 export type PaymentMethod = 'CASH' | 'ONLINE';

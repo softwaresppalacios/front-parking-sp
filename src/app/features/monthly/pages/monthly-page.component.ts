@@ -10,7 +10,7 @@ import { ParkingContextService } from '../../../core/state/parking-context.servi
 import { ToastService } from '../../../core/ui/toast.service';
 import { BackdropClickDirective } from '../../../shared/directives/backdrop-click.directive';
 import {
-  apiErrorMessage, VEHICLE_TYPES, cleanPlate, dateKey, daysUntil, displayPlate, formatPlate, money, parseDateKey, paymentMethodMeta, readStorage, shortDate,
+  apiErrorMessage, VEHICLE_TYPES, cleanPlate, dateKey, daysUntil, displayPlate, formatPlate, hhmm, money, parseDateKey, paymentMethodMeta, readStorage, shortDate,
   tenantHeaders, tenantIdFromRoute, vehicleMeta, whatsappUrl, writeStorage
 } from '../../../core/utils';
 
@@ -44,6 +44,10 @@ export class MonthlyPageComponent {
   /** Mensualidad sobre la que se edita, renueva o cancela. */
   selected = signal<MonthlySubscription | null>(null);
   lastWelcome = signal('');
+  /** uuid de la mensualidad cuyo recordatorio se esta enviando. */
+  reminding = signal('');
+  /** Enlace de WhatsApp para recordar a mano cuando el envio automatico falla. */
+  manualReminder = signal('');
 
   prices = readStorage<Record<string, number>>(this.pricesKey(), { ...DEFAULT_PRICES });
   form = this.emptyForm();
@@ -117,6 +121,9 @@ export class MonthlyPageComponent {
 
   onPlateChange(value: string) { this.form.plate = formatPlate(value); }
 
+  /** Fecha minima de inicio: no se crean mensualidades en dias pasados. */
+  today() { return dateKey(new Date()); }
+
   endDate() {
     if (!this.form.startsAt) return '';
     const date = parseDateKey(this.form.startsAt);
@@ -134,6 +141,8 @@ export class MonthlyPageComponent {
     if (this.form.customerPhone.replace(/\D/g, '').length < 7) { this.toast.err('Ingrese el celular del cliente'); return; }
     if (plate.length < 5) { this.toast.err('Ingrese una placa válida'); return; }
     if (!(Number(this.form.amount) > 0)) { this.toast.err('Ingrese el valor de la mensualidad'); return; }
+    if (!this.form.startsAt) { this.toast.err('Ingrese la fecha de inicio'); return; }
+    if (this.form.startsAt < this.today()) { this.toast.err('La fecha de inicio no puede ser anterior a hoy'); return; }
     this.saving.set(true);
     this.http.post<MonthlySubscription>(`${API.operation}/monthly-subscriptions`, {
       customerName: this.form.customerName.trim(),
@@ -270,18 +279,45 @@ export class MonthlyPageComponent {
     if (!this.saving()) this.modal.set(null);
   }
 
+  /**
+   * Envia ya el recordatorio con la plantilla de WhatsApp del servidor. Si no se puede (plantilla en revision,
+   * envio en pausa...), deja a mano un enlace para mandarlo desde WhatsApp del equipo.
+   */
   remind(item: MonthlySubscription) {
+    const first = item.customerName.split(' ')[0];
+    this.reminding.set(item.uuid);
+    this.manualReminder.set('');
+    this.http.post<{ sent: boolean; error?: string }>(`${API.operation}/monthly-subscriptions/${item.uuid}/reminder`, {}, tenantHeaders(this.tenantId)).subscribe({
+      next: status => {
+        this.reminding.set('');
+        this.context.refreshSubscriptions();
+        if (status.sent) {
+          this.toast.ok(`Recordatorio enviado por WhatsApp a ${first}`, '📲');
+        } else {
+          this.offerManualReminder(item, status.error || 'No se pudo enviar el recordatorio');
+        }
+      },
+      error: err => {
+        this.reminding.set('');
+        this.offerManualReminder(item, apiErrorMessage(err, 'No se pudo enviar el recordatorio'));
+      }
+    });
+  }
+
+  private offerManualReminder(item: MonthlySubscription, reason: string) {
     const first = item.customerName.split(' ')[0];
     const text = [
       `Hola ${first} 👋`,
       `Te recordamos que tu mensualidad en ${this.context.parkingName()} para ${displayPlate(item.plate)} vence el ${shortDate(item.expiresAt)}.`,
       'Renuévala para seguir disfrutando tu espacio. ¡Gracias! 🅿️'
     ].join('\n');
-    window.open(whatsappUrl(item.customerPhone, text), '_blank');
-    this.toast.ok(`Recordatorio abierto en WhatsApp para ${first}`, '📲');
+    this.manualReminder.set(whatsappUrl(item.customerPhone, text));
+    this.toast.err(`${reason}. Puedes enviarlo manualmente con el botón "Recordar desde mi WhatsApp".`);
   }
 
   shortDate = shortDate;
+  dateKey = dateKey;
+  hhmm = hhmm;
   money = money;
   plate = displayPlate;
   meta = vehicleMeta;

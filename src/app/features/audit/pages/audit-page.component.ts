@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS: Record<string, { label: string; cls: string }> = {
   MONTHLY_UPDATE: { label: 'Mensualidad editada', cls: 'amber' },
   MONTHLY_RENEW: { label: 'Mensualidad renovada', cls: 'green' },
   MONTHLY_CANCEL: { label: 'Mensualidad cancelada', cls: 'red' },
+  MONTHLY_REMINDER: { label: 'Recordatorio de mensualidad', cls: 'blue' },
   CASH_OPEN: { label: 'Apertura de caja', cls: 'blue' },
   CASH_CLOSE: { label: 'Cierre de caja', cls: 'blue' },
   TARIFF_UPDATE: { label: 'Tarifa modificada', cls: 'amber' },
