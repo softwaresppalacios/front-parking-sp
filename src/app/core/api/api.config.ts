@@ -1,7 +1,10 @@
+/** Todo pasa por el API Gateway; cada servicio se publica bajo su propio prefijo. */
+export const GATEWAY_URL = 'http://localhost:8090';
+
 export const API = {
-  tenant: 'http://localhost:8081/api',
-  operation: 'http://localhost:8082/api',
-  pricing: 'http://localhost:8083/api',
-  payment: 'http://localhost:8084/api',
-  reporting: 'http://localhost:8085/api'
+  tenant: `${GATEWAY_URL}/tenant/api`,
+  operation: `${GATEWAY_URL}/operation/api`,
+  pricing: `${GATEWAY_URL}/pricing/api`,
+  payment: `${GATEWAY_URL}/payment/api`,
+  reporting: `${GATEWAY_URL}/reporting/api`
 } as const;

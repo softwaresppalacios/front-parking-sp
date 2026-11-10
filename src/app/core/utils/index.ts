@@ -1,6 +1,6 @@
 import { HttpHeaders } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
-import { API } from '../api/api.config';
+import { GATEWAY_URL } from '../api/api.config';
 import { PricingRule, Schedule } from '../models';
 
 export function tenantIdFromRoute(route: ActivatedRoute): string {
@@ -249,22 +249,13 @@ export function sessionUserName() {
   return readStorage<{ user?: { fullName?: string } }>('sp_session', {}).user?.fullName || 'Administrador';
 }
 
-const SERVICE_NAMES: { prefix: string; name: string }[] = [
-  { prefix: API.tenant, name: 'El servicio de usuarios y configuración (puerto 8081)' },
-  { prefix: API.operation, name: 'El servicio de operación (puerto 8082)' },
-  { prefix: API.pricing, name: 'El servicio de tarifas (puerto 8083)' },
-  { prefix: API.payment, name: 'El servicio de caja (puerto 8084)' },
-  { prefix: API.reporting, name: 'El servicio de reportes (puerto 8085)' }
-];
-
 /**
- * Mensaje legible para un error HTTP: si el servicio no responde dice cual es, y si respondio usa su mensaje.
- * Los errores 503 de un servicio que llama a otro (p. ej. la salida que consulta tarifas) traen su propio texto.
+ * Mensaje legible para un error HTTP. Sin respuesta (status 0) es el gateway el que esta apagado;
+ * si un servicio detras del gateway esta apagado, el gateway responde 503 diciendo cual es.
  */
 export function apiErrorMessage(err: { status?: number; url?: string | null; error?: { message?: string } } | null | undefined, fallback: string) {
   if (err?.status === 0) {
-    const service = SERVICE_NAMES.find(item => err.url?.startsWith(item.prefix));
-    return `${service?.name || 'El servidor'} no responde. Verifica que esté encendido.`;
+    return `El servidor (API Gateway en ${GATEWAY_URL}) no responde. Verifica que esté encendido.`;
   }
   return err?.error?.message || fallback;
 }
