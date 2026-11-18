@@ -1,5 +1,7 @@
+import { environment } from '../../../environments/environment';
+
 /** Todo pasa por el API Gateway; cada servicio se publica bajo su propio prefijo. */
-export const GATEWAY_URL = 'http://localhost:8090';
+export const GATEWAY_URL = environment.gatewayUrl;
 
 export const API = {
   tenant: `${GATEWAY_URL}/tenant/api`,
