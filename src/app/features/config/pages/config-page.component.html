@@ -1,0 +1,142 @@
+<div class="view">
+  <div class="loading-note" *ngIf="!draft()">Cargando configuración del parqueadero...</div>
+
+  <div class="g2" *ngIf="draft() as config">
+    <div>
+      <form class="card mb16" (ngSubmit)="saveBranch()">
+        <div class="card-title">Datos del Establecimiento</div>
+        <div style="display:grid;gap:12px">
+          <div class="fg"><label class="fl" for="cName">Nombre del parqueadero</label>
+            <input class="fi" id="cName" name="name" [ngModel]="config.name" (ngModelChange)="setField('name', $event)"></div>
+          <div class="form-grid-2">
+            <div class="fg"><label class="fl" for="cNit">NIT</label><input class="fi" id="cNit" name="nit" [ngModel]="config.nit" (ngModelChange)="setField('nit', $event)"></div>
+            <div class="fg"><label class="fl" for="cPhone">Teléfono</label><input class="fi" id="cPhone" name="phone" [ngModel]="config.phone" (ngModelChange)="setField('phone', $event)"></div>
+          </div>
+          <div class="fg"><label class="fl" for="cAddress">Dirección</label><input class="fi" id="cAddress" name="address" [ngModel]="config.address" (ngModelChange)="setField('address', $event)"></div>
+          <div class="form-grid-2">
+            <div class="fg"><label class="fl" for="cCars">Capacidad carros</label><input class="fi" id="cCars" name="cars" type="number" min="0" [ngModel]="config.carCapacity" (ngModelChange)="setNumber('carCapacity', $event)"></div>
+            <div class="fg"><label class="fl" for="cMotos">Capacidad motos</label><input class="fi" id="cMotos" name="motos" type="number" min="0" [ngModel]="config.motorcycleCapacity" (ngModelChange)="setNumber('motorcycleCapacity', $event)"></div>
+            <div class="fg"><label class="fl" for="cKeys">Tablero llaves</label><input class="fi" id="cKeys" name="keys" type="number" min="0" [ngModel]="config.keyRackCapacity" (ngModelChange)="setNumber('keyRackCapacity', $event)"></div>
+            <div class="fg"><label class="fl" for="cHelmets">Casilleros cascos</label><input class="fi" id="cHelmets" name="helmets" type="number" min="0" [ngModel]="config.helmetLockerCapacity" (ngModelChange)="setNumber('helmetLockerCapacity', $event)"></div>
+          </div>
+          <div class="form-hint" style="color:var(--red)" *ngIf="config.manageResources && !config.carCapacity && !config.motorcycleCapacity">
+            ⚠ Con capacidad 0 no hay espacios para asignar y no se pueden registrar entradas. Indica cuántos espacios de carros y motos tiene el parqueadero y guarda los cambios.
+          </div>
+          <label class="toggle-row">
+            <span>Asignar slots, llaves y casilleros automáticamente</span>
+            <span class="toggle"><input type="checkbox" name="manage" [ngModel]="config.manageResources" (ngModelChange)="setField('manageResources', $event)"><span class="tog-slider"></span></span>
+          </label>
+          <button class="btn-primary" type="submit" style="width:100%;justify-content:center" [disabled]="savingBranch()">{{ savingBranch() ? 'Guardando...' : 'Guardar cambios' }}</button>
+        </div>
+      </form>
+
+      <div class="card">
+        <div class="card-title">Tarifas</div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>Tipo</th><th>1ª hora</th><th>Hora adicional</th><th>Por minuto</th><th>$/día</th><th></th></tr></thead>
+            <tbody>
+              <tr *ngFor="let rule of context.rules()">
+                <td><span class="tbadge {{ meta(rule.vehicleType).cls }}">{{ rule.displayName }}</span></td>
+                <ng-container *ngIf="rule.pricingModel !== 'FLAT'; else flatRow">
+                  <td><span class="plate">{{ money(rule.hourlyAmount) }}</span></td>
+                  <td><span class="plate">{{ money(rule.additionalHourAmount ?? rule.hourlyAmount) }}</span></td>
+                  <td style="font-size:11px;color:var(--text3)">{{ minuteText(rule) }}/min</td>
+                </ng-container>
+                <ng-template #flatRow>
+                  <td colspan="3" style="font-size:11px;color:var(--text3)">Tarifa plana · <span class="plate">{{ money(rule.flatAmount) }}</span></td>
+                </ng-template>
+                <td><span class="plate">{{ rule.dayAmount ? money(rule.dayAmount) : '—' }}</span></td>
+                <td><button class="btn btn-ghost sm" type="button" (click)="editRule(rule)">Editar</button></td>
+              </tr>
+              <tr *ngIf="!context.rules().length"><td colspan="6" class="empty">No se pudieron cargar las tarifas</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <members-card *ngIf="isOwner" [tenantId]="tenantId"></members-card>
+
+      <div class="card mb16">
+        <div class="card-title">Horario de Atención</div>
+        <div class="hor-row" *ngFor="let day of config.schedules; let i = index" [class.closed]="day.closed">
+          <span class="hor-day">{{ dayLabel(day.dayOfWeek) }}</span>
+          <input type="time" class="fi sm" [attr.aria-label]="'Apertura ' + dayLabel(day.dayOfWeek)" [disabled]="day.closed"
+                 [ngModel]="day.openTime" (ngModelChange)="setSchedule(i, { openTime: $event })">
+          <input type="time" class="fi sm" [attr.aria-label]="'Cierre ' + dayLabel(day.dayOfWeek)" [disabled]="day.closed"
+                 [ngModel]="day.closeTime" (ngModelChange)="setSchedule(i, { closeTime: $event })">
+          <label class="toggle" [title]="day.closed ? 'Cerrado' : 'Abierto'">
+            <input type="checkbox" [checked]="!day.closed" (change)="toggleDay(i, $any($event.target).checked)"><span class="tog-slider"></span>
+          </label>
+        </div>
+        <button class="btn btn-ghost" type="button" style="width:100%;margin-top:8px" (click)="saveSchedule()" [disabled]="savingSchedule()">
+          {{ savingSchedule() ? 'Guardando...' : 'Guardar horario' }}
+        </button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Suscripción SP Parqueaderos</div>
+        <div class="sub-box" [class.off]="!plan().active">
+          <div class="sub-head">
+            <div><div class="sub-name">Plan {{ plan().name }}</div><div class="sub-meta">{{ context.tenant()?.name }}</div></div>
+            <span class="chip" [class.green]="plan().active" [class.red]="!plan().active">{{ plan().active ? '✓ ACTIVA' : 'INACTIVA' }}</span>
+          </div>
+          <div class="sub-figure">{{ plan().used }}<small> / {{ plan().limit }} sedes</small></div>
+          <div class="pbar" style="margin-top:10px"><div class="pfill green" [style.width.%]="plan().pct"></div></div>
+          <div class="sub-meta" style="margin-top:4px">{{ plan().limit - plan().used }} sedes disponibles en tu plan</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="editing() as rule" (backdropClick)="editing.set(null)">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="saveRule()">
+    <div class="modal-title">Editar tarifa — {{ meta(rule.vehicleType).emoji }} {{ rule.displayName }}</div>
+    <div style="display:grid;gap:12px">
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="rName">Nombre visible</label><input class="fi" id="rName" name="displayName" [ngModel]="rule.displayName" (ngModelChange)="patchRule({ displayName: $event })"></div>
+        <div class="fg"><label class="fl" for="rModel">Modelo de cobro</label>
+          <select class="fs" id="rModel" name="model" [ngModel]="rule.pricingModel" (ngModelChange)="patchRule({ pricingModel: $event })">
+            <option value="PROGRESSIVE">Primera hora + horas adicionales</option>
+            <option value="FLAT">Tarifa plana</option>
+          </select>
+        </div>
+      </div>
+      <ng-container *ngIf="rule.pricingModel === 'PROGRESSIVE'; else flatFields">
+        <div class="form-grid-2">
+          <div class="fg"><label class="fl" for="rHour">Primera hora <span>*</span></label><input class="fi" id="rHour" name="hourly" type="number" min="0" step="100" [ngModel]="rule.hourlyAmount" (ngModelChange)="patchRule({ hourlyAmount: $event })"></div>
+          <div class="fg"><label class="fl" for="rAdd">Hora adicional <span>*</span></label><input class="fi" id="rAdd" name="additional" type="number" min="0" step="100" [ngModel]="rule.additionalHourAmount" (ngModelChange)="patchRule({ additionalHourAmount: $event })"></div>
+        </div>
+        <div class="form-hint">
+          La primera hora (o cualquier parte de ella) se cobra completa. Después, cada minuto se cobra proporcional
+          a la hora adicional: {{ minuteText(rule) }} por minuto.
+        </div>
+        <div class="modal-box" style="margin:0">
+          <div class="fl" style="margin-bottom:6px">Ejemplos con esta tarifa</div>
+          <div class="calc-row" *ngFor="let example of examples(rule)"><span>{{ example.label }}</span><span>{{ money(example.amount) }}</span></div>
+        </div>
+        <div class="form-grid-2">
+          <div class="fg"><label class="fl" for="rDay">Valor día (24h)</label><input class="fi" id="rDay" name="day" type="number" min="0" [ngModel]="rule.dayAmount" (ngModelChange)="patchRule({ dayAmount: $event })"></div>
+          <div class="fg"><label class="fl" for="rLost">Ticket perdido</label><input class="fi" id="rLost" name="lost" type="number" min="0" [ngModel]="rule.lostTicketFee" (ngModelChange)="patchRule({ lostTicketFee: $event })"></div>
+        </div>
+        <label class="toggle-row">
+          <span>No cobrar más del valor día (tope diario)</span>
+          <span class="toggle"><input type="checkbox" name="cap" [ngModel]="rule.applyDailyCap" (ngModelChange)="patchRule({ applyDailyCap: $event })"><span class="tog-slider"></span></span>
+        </label>
+      </ng-container>
+      <ng-template #flatFields>
+        <div class="form-grid-2">
+          <div class="fg"><label class="fl" for="rFlat">Valor tarifa plana <span>*</span></label><input class="fi" id="rFlat" name="flat" type="number" min="0" [ngModel]="rule.flatAmount" (ngModelChange)="patchRule({ flatAmount: $event })"></div>
+          <div class="fg"><label class="fl" for="rLostFlat">Ticket perdido</label><input class="fi" id="rLostFlat" name="lostFlat" type="number" min="0" [ngModel]="rule.lostTicketFee" (ngModelChange)="patchRule({ lostTicketFee: $event })"></div>
+        </div>
+      </ng-template>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="editing.set(null)">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="savingRule()">✓ {{ savingRule() ? 'Guardando...' : 'Guardar tarifa' }}</button>
+    </div>
+  </form>
+</div>

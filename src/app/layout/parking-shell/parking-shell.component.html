@@ -1,6 +1,15 @@
-<div class="shell">
+<div class="app-shell">
   <parking-sidebar></parking-sidebar>
-  <section class="workbench">
-    <router-outlet></router-outlet>
-  </section>
+  <div class="main">
+    <div class="topbar">
+      <div class="page-title">{{ title() }}</div>
+      <div class="topbar-right">
+        <div class="topbar-time">{{ clock() }}</div>
+        <button class="btn-primary" routerLink="entrada">↓ Nueva Entrada</button>
+      </div>
+    </div>
+    <div class="content">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
 </div>

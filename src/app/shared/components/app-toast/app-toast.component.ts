@@ -7,20 +7,12 @@ import { ToastService } from '../../../core/ui/toast.service';
   standalone: true,
   imports: [CommonModule],
   template: `
-    <section class="toast-stack" aria-live="polite" aria-atomic="true">
-      <article class="toast-card" [class.toast-card--error]="toast.kind === 'error'" *ngFor="let toast of toastService.toasts()">
-        <div class="toast-card__icon">
-          <i class="pi" [class.pi-check]="toast.kind === 'success'" [class.pi-times]="toast.kind === 'error'"></i>
-        </div>
-        <div class="toast-card__copy">
-          <strong>{{ toast.title }}</strong>
-          <span>{{ toast.detail }}</span>
-        </div>
-        <button type="button" class="toast-card__close" aria-label="Cerrar alerta" (click)="toastService.dismiss(toast.id)">
-          <i class="pi pi-times"></i>
-        </button>
-      </article>
-    </section>
+    <div class="toast-cont" aria-live="polite">
+      <div class="toast {{ toast.kind }}" [class.leaving]="toast.leaving" *ngFor="let toast of toastService.toasts()">
+        <span class="toast-icon">{{ toast.icon }}</span>
+        <span class="toast-text">{{ toast.text }}</span>
+      </div>
+    </div>
   `
 })
 export class AppToastComponent {

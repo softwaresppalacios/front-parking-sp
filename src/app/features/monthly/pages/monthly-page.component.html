@@ -1,136 +1,227 @@
-<header class="page-head">
-  <div>
-    <span class="eyebrow">Mensualidades</span>
-    <h1>Clientes mensuales</h1>
-    <p>Consulta pagos vigentes, compradores y vehiculos registrados.</p>
-  </div>
-  <div class="monthly-actions">
-    <button class="ghost" (click)="load()">Actualizar</button>
-    <button (click)="openModal()">Nueva mensualidad</button>
-  </div>
-</header>
-
-<section class="stats">
-  <article><small>Mensualidades vigentes</small><b>{{ activeSubscriptions().length }}</b></article>
-  <article><small>Carros</small><b>{{ countByType('CAR') }}</b></article>
-  <article><small>Motos</small><b>{{ countByType('MOTORCYCLE') }}</b></article>
-  <article><small>Total registrado</small><b>{{ money(monthlyRevenue()) }}</b></article>
-</section>
-
-<section class="monthly-overview">
-  <article class="panel monthly-hero">
+<div class="view">
+  <div class="g65">
     <div>
-      <h2>Control de mensualidades</h2>
-      <p>Registra pagos mensuales con comprador, placa, valor, metodo de pago y vigencia. Cada pago queda tambien en caja.</p>
-    </div>
-    <button (click)="openModal()">Registrar pago mensual</button>
-  </article>
-
-  <article class="panel monthly-help">
-    <h2>Dentro del parqueadero</h2>
-    <div>
-      <strong>{{ monthlyTickets().length }}</strong>
-      <span>vehiculos mensuales estan actualmente ocupando un espacio.</span>
-    </div>
-  </article>
-</section>
-
-<section class="panel">
-  <div class="monthly-table-head">
-    <div>
-      <h2>Mensualidades registradas</h2>
-      <p>Busca por placa o nombre del comprador.</p>
-    </div>
-    <input [(ngModel)]="query" placeholder="Buscar comprador o placa">
-  </div>
-
-  <table>
-    <tr>
-      <th>Comprador</th>
-      <th>Contacto</th>
-      <th>Placa</th>
-      <th>Tipo</th>
-      <th>Valor</th>
-      <th>Pago</th>
-      <th>Vigencia</th>
-      <th>Estado</th>
-    </tr>
-    <tr *ngFor="let item of filteredSubscriptions()">
-      <td>
-        <strong>{{ item.customerName }}</strong><br>
-        <small>{{ item.customerDocument || 'Sin documento' }}</small>
-      </td>
-      <td>{{ item.customerPhone || 'N/A' }}</td>
-      <td><span class="plate">{{ item.plate }}</span></td>
-      <td>{{ label(item.vehicleType) }}</td>
-      <td>{{ money(item.amount) }}</td>
-      <td>{{ item.paymentMethod === 'DIGITAL' ? 'Pago digital' : 'Efectivo' }}</td>
-      <td>{{ item.startsAt | date:'shortDate' }} - {{ item.expiresAt | date:'shortDate' }}</td>
-      <td><span class="chip" [class.green]="item.active" [class.red]="!item.active">{{ item.active ? 'Activa' : 'Inactiva' }}</span></td>
-    </tr>
-  </table>
-
-  <p class="notice" *ngIf="!filteredSubscriptions().length">No hay mensualidades registradas con ese filtro.</p>
-</section>
-
-<div class="modal-backdrop" *ngIf="modalOpen()" (click)="closeModal()">
-  <section class="monthly-modal" (click)="$event.stopPropagation()">
-    <header class="monthly-modal__header">
-      <div>
-        <small>Nueva mensualidad</small>
-        <h2>Registrar pago mensual</h2>
-      </div>
-      <button class="monthly-modal__close" type="button" (click)="closeModal()" aria-label="Cerrar modal">
-        <i class="pi pi-times"></i>
-      </button>
-    </header>
-
-    <div class="monthly-form__grid">
-      <label>Nombre del comprador
-        <input [(ngModel)]="form.customerName" placeholder="Ej. Carlos Ramirez">
-      </label>
-      <label>Documento
-        <input [(ngModel)]="form.customerDocument" placeholder="CC / NIT">
-      </label>
-      <label>Celular
-        <input [(ngModel)]="form.customerPhone" placeholder="3000000000">
-      </label>
-      <label>Placa
-        <input [(ngModel)]="form.plate" (ngModelChange)="onPlateChange($event)" placeholder="ABC123" maxlength="10">
-      </label>
-      <label>Tipo de vehiculo
-        <select [(ngModel)]="form.vehicleType">
-          <option value="CAR">Carro</option>
-          <option value="MOTORCYCLE">Moto</option>
-          <option value="HEAVY">Carga pesada</option>
-          <option value="BICYCLE">Bicicleta</option>
-        </select>
-      </label>
-      <label>Valor pagado
-        <div class="currency-input">
-          <span>COP</span>
-          <input type="number" min="0" [(ngModel)]="form.amount">
+      <div class="list-head">
+        <div class="meta">{{ counts().ACTIVE }} vigentes · {{ expiring().length }} vencen pronto · {{ counts().EXPIRED }} vencidas</div>
+        <div style="display:flex;gap:8px">
+          <a class="btn btn-g sm" style="text-decoration:none;align-self:center" *ngIf="lastWelcome()" [href]="lastWelcome()" target="_blank" (click)="lastWelcome.set('')">📲 Enviar confirmación</a>
+          <a class="btn btn-ghost sm" style="text-decoration:none;align-self:center" *ngIf="manualReminder()" [href]="manualReminder()" target="_blank" (click)="manualReminder.set('')">📲 Recordar desde mi WhatsApp</a>
+          <button class="btn-primary" (click)="openNew()">+ Nueva Mensualidad</button>
         </div>
-      </label>
-      <label>Metodo de pago
-        <select [(ngModel)]="form.paymentMethod">
-          <option value="CASH">Efectivo</option>
-          <option value="DIGITAL">Pago digital</option>
-        </select>
-      </label>
-      <label>Inicio
-        <input type="date" [(ngModel)]="form.startsAt">
-      </label>
-      <label>Meses pagados
-        <input type="number" min="1" [(ngModel)]="form.months">
-      </label>
+      </div>
+
+      <div class="list-tools">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab" [class.active]="tab() === 'ACTIVE'" (click)="tab.set('ACTIVE')">Vigentes <span class="count">{{ counts().ACTIVE }}</span></button>
+          <button type="button" class="tab" [class.active]="tab() === 'EXPIRED'" (click)="tab.set('EXPIRED')">Vencidas <span class="count">{{ counts().EXPIRED }}</span></button>
+          <button type="button" class="tab" [class.active]="tab() === 'CANCELLED'" (click)="tab.set('CANCELLED')">Canceladas <span class="count">{{ counts().CANCELLED }}</span></button>
+        </div>
+        <input class="fi" placeholder="Buscar por nombre, placa o cédula" aria-label="Buscar mensualidad" [ngModel]="query()" (ngModelChange)="query.set($event)">
+      </div>
+
+      <div class="client-card static" *ngFor="let item of visible()" [class.cancelled]="statusOf(item) === 'CANCELLED'">
+        <div style="flex:1;min-width:0">
+          <div class="cli-name">{{ item.customerName }}</div>
+          <div class="cli-meta">
+            <span>📋 {{ item.customerDocument || 'Sin cédula' }}</span>
+            <span>📱 {{ item.customerPhone || 'Sin celular' }}</span>
+            <span>{{ meta(item.vehicleType).emoji }} {{ meta(item.vehicleType).short }}</span>
+            <span class="red">{{ money(item.amount) }}/mes</span>
+          </div>
+          <div class="cli-plates">
+            <span class="plate">{{ plate(item.plate) }}</span>
+            <span class="due" *ngIf="statusOf(item) !== 'CANCELLED'">{{ statusOf(item) === 'EXPIRED' ? 'Venció' : 'Vence' }}: {{ shortDate(item.expiresAt) }}</span>
+            <span class="due" *ngIf="statusOf(item) === 'CANCELLED'">Cancelada {{ item.cancelledAt ? shortDate(item.cancelledAt) : '' }}</span>
+          </div>
+          <div class="cli-note" *ngIf="statusOf(item) === 'CANCELLED' && item.cancelReason">Motivo: {{ item.cancelReason }}</div>
+          <div class="cli-note" *ngIf="item.renewedAt && statusOf(item) !== 'CANCELLED'">Última renovación: {{ shortDate(item.renewedAt) }}</div>
+          <ng-container *ngIf="statusOf(item) !== 'CANCELLED'">
+            <div class="cli-note" *ngIf="item.reminderSentAt">📲 Recordatorio enviado por WhatsApp el {{ shortDate(dateKey(item.reminderSentAt)) }} {{ hhmm(item.reminderSentAt) }}</div>
+            <div class="cli-note" style="color:var(--red)" *ngIf="!item.reminderSentAt && item.reminderError">⚠ Recordatorio no enviado: {{ item.reminderError }}</div>
+          </ng-container>
+          <div class="cli-actions" *ngIf="statusOf(item) !== 'CANCELLED'">
+            <button type="button" class="btn btn-g sm" (click)="openRenew(item)">↻ Renovar</button>
+            <button type="button" class="btn btn-ghost sm" *ngIf="canManage" (click)="openEdit(item)">✎ Editar</button>
+            <button type="button" class="btn btn-ghost sm" *ngIf="item.customerPhone && days(item) <= 10" (click)="remind(item)" [disabled]="reminding() === item.uuid">📲 {{ reminding() === item.uuid ? 'Enviando...' : 'Recordar' }}</button>
+            <button type="button" class="btn btn-ghost sm" style="color:var(--red)" *ngIf="canManage" (click)="openCancel(item)">✕ Cancelar</button>
+          </div>
+        </div>
+        <div class="days-badge {{ daysClass(item) }}" *ngIf="statusOf(item) !== 'CANCELLED'">
+          <div class="days-num">{{ days(item) < 0 ? -days(item) : days(item) }}</div>
+          <div class="days-unit">{{ days(item) < 0 ? 'días vencida' : 'días' }}</div>
+        </div>
+      </div>
+
+      <div class="card" *ngIf="!visible().length">
+        <div class="empty-state" style="padding:30px">
+          <div class="icon">♻</div>
+          <ng-container *ngIf="query(); else emptyTab">
+            <div class="title">Sin resultados</div>
+            <div class="text">Ninguna mensualidad coincide con "{{ query() }}" en esta pestaña.</div>
+          </ng-container>
+          <ng-template #emptyTab>
+            <div class="title">{{ tab() === 'ACTIVE' ? 'Sin mensualidades vigentes' : tab() === 'EXPIRED' ? 'Sin mensualidades vencidas' : 'Sin mensualidades canceladas' }}</div>
+            <div class="text" *ngIf="tab() === 'ACTIVE'">Registra una con el botón "+ Nueva Mensualidad".</div>
+          </ng-template>
+        </div>
+      </div>
     </div>
 
-    <footer class="monthly-modal__footer">
-      <button class="ghost" type="button" (click)="closeModal()">Cancelar</button>
-      <button type="button" (click)="create()" [disabled]="saving()">
-        {{ saving() ? 'Registrando...' : 'Registrar mensualidad' }}
-      </button>
-    </footer>
-  </section>
+    <div class="col">
+      <div class="card">
+        <div class="card-title">Resumen</div>
+        <div class="big-figure">
+          <div class="value">{{ money(fixedIncome()) }}</div>
+          <div class="label">INGRESOS MENSUALES FIJOS</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="calc-row" *ngFor="let row of byType()"><span>{{ row.label }} ({{ row.count }})</span><span style="color:var(--green);font-weight:600">{{ money(row.amount) }}</span></div>
+          <div class="empty-note" *ngIf="!byType().length">Sin mensualidades vigentes.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠ Por Vencer</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="due-card" *ngFor="let item of expiring()" [class.exp]="days(item) <= 3">
+            <div class="due-name">{{ item.customerName }}</div>
+            <div class="due-meta">{{ plate(item.plate) }} · Vence {{ shortDate(item.expiresAt) }} · {{ days(item) }} {{ days(item) === 1 ? 'día' : 'días' }}{{ item.reminderSentAt ? ' · ✓ recordado' : '' }}</div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-g btn-wa" (click)="openRenew(item)">↻ Renovar</button>
+              <button class="btn btn-ghost btn-wa" (click)="remind(item)" [disabled]="!item.customerPhone || reminding() === item.uuid">📲 Recordar</button>
+            </div>
+          </div>
+          <div class="empty-note" *ngIf="!expiring().length">Ninguna mensualidad vence en los próximos 10 días.</div>
+          <div class="form-hint">El recordatorio por WhatsApp se envía solo cuando faltan 5 días o menos para el vencimiento.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Nueva mensualidad -->
+<div class="modal-overlay" *ngIf="modal() === 'new'" (backdropClick)="closeModal()">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="save()">
+    <div class="modal-title">Nueva Mensualidad</div>
+    <div style="display:grid;gap:12px">
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="nName">Nombre <span>*</span></label><input class="fi" id="nName" name="name" placeholder="Nombre completo" [(ngModel)]="form.customerName"></div>
+        <div class="fg"><label class="fl" for="nDoc">Cédula</label><input class="fi" id="nDoc" name="doc" placeholder="12345678" [(ngModel)]="form.customerDocument"></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="nPhone">Celular <span>*</span></label><input class="fi" id="nPhone" name="phone" placeholder="310 000 0000" inputmode="tel" [(ngModel)]="form.customerPhone"></div>
+        <div class="fg"><label class="fl" for="nMethod">Método de pago</label>
+          <select class="fs" id="nMethod" name="method" [(ngModel)]="form.paymentMethod"><option value="CASH">💵 Efectivo</option><option value="ONLINE">🌐 En línea</option></select>
+        </div>
+      </div>
+      <div class="fg" *ngIf="form.paymentMethod === 'ONLINE'"><label class="fl" for="mRef">Referencia del pago <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <input class="fi" id="mRef" name="onlineReference" maxlength="80" placeholder="Nequi, Daviplata, transferencia..." [(ngModel)]="form.onlineReference"></div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="nPlate">Placa <span>*</span></label><input class="fi" id="nPlate" name="plate" placeholder="ABC 123" style="text-transform:uppercase" maxlength="8" [ngModel]="form.plate" (ngModelChange)="onPlateChange($event)"></div>
+        <div class="fg"><label class="fl" for="nType">Tipo <span>*</span></label>
+          <select class="fs" id="nType" name="type" [ngModel]="form.vehicleType" (ngModelChange)="onTypeChange($event)">
+            <option *ngFor="let type of vehicleTypes" [value]="type">{{ typeOption(type) }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="nAmount">Valor mensual <span>*</span></label><input class="fi" id="nAmount" name="amount" type="number" min="0" step="1000" [(ngModel)]="form.amount"></div>
+        <div class="fg"><label class="fl" for="nMonths">Duración</label>
+          <select class="fs" id="nMonths" name="months" [(ngModel)]="form.months"><option *ngFor="let m of durations" [ngValue]="m">{{ m }} {{ m === 1 ? 'mes' : 'meses' }}</option></select>
+        </div>
+      </div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="nStart">Fecha inicio</label><input type="date" class="fi" id="nStart" name="start" [min]="today()" [(ngModel)]="form.startsAt"></div>
+        <div class="fg"><label class="fl" for="nEnd">Fecha fin</label><input type="date" class="fi" id="nEnd" name="end" [value]="endDate()" disabled></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="closeModal()">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="saving()">✓ {{ saving() ? 'Guardando...' : 'Guardar Mensualidad' }}</button>
+    </div>
+  </form>
+</div>
+
+<!-- Editar -->
+<div class="modal-overlay" *ngIf="modal() === 'edit' && selected() as item" (backdropClick)="closeModal()">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="saveEdit()">
+    <div class="modal-title">Editar mensualidad — {{ plate(item.plate) }}</div>
+    <div style="display:grid;gap:12px">
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="eName">Nombre <span>*</span></label><input class="fi" id="eName" name="name" [(ngModel)]="editForm.customerName"></div>
+        <div class="fg"><label class="fl" for="eDoc">Cédula</label><input class="fi" id="eDoc" name="doc" [(ngModel)]="editForm.customerDocument"></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="ePhone">Celular</label><input class="fi" id="ePhone" name="phone" inputmode="tel" [(ngModel)]="editForm.customerPhone"></div>
+        <div class="fg"><label class="fl" for="ePlate">Placa <span>*</span></label><input class="fi" id="ePlate" name="plate" style="text-transform:uppercase" maxlength="8" [ngModel]="editForm.plate" (ngModelChange)="onEditPlateChange($event)"></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="eType">Tipo <span>*</span></label>
+          <select class="fs" id="eType" name="type" [(ngModel)]="editForm.vehicleType">
+            <option *ngFor="let type of vehicleTypes" [value]="type">{{ meta(type).emoji }} {{ meta(type).short }}</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl" for="eAmount">Valor mensual <span>*</span></label><input class="fi" id="eAmount" name="amount" type="number" min="0" step="1000" [(ngModel)]="editForm.amount"></div>
+      </div>
+      <div class="form-hint">Vigencia actual: {{ shortDate(item.startsAt) }} al {{ shortDate(item.expiresAt) }}. El valor mensual nuevo aplica a las próximas renovaciones; lo ya cobrado no cambia.</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="closeModal()">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="saving()">✓ {{ saving() ? 'Guardando...' : 'Guardar cambios' }}</button>
+    </div>
+  </form>
+</div>
+
+<!-- Renovar -->
+<div class="modal-overlay" *ngIf="modal() === 'renew' && selected() as item" (backdropClick)="closeModal()">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="saveRenew()">
+    <div class="modal-title">Renovar mensualidad — {{ plate(item.plate) }}</div>
+    <div style="display:grid;gap:12px">
+      <div class="form-hint">{{ item.customerName }} · {{ meta(item.vehicleType).emoji }} {{ meta(item.vehicleType).short }} · {{ money(item.amount) }}/mes</div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="rMonths">Meses a renovar</label>
+          <select class="fs" id="rMonths" name="months" [ngModel]="renewForm.months" (ngModelChange)="onRenewMonthsChange($event)">
+            <option *ngFor="let m of durations" [ngValue]="m">{{ m }} {{ m === 1 ? 'mes' : 'meses' }}</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl" for="rAmount">Valor a cobrar <span>*</span></label><input class="fi" id="rAmount" name="amount" type="number" min="0" step="1000" [(ngModel)]="renewForm.amount"></div>
+      </div>
+      <div class="form-grid-2">
+        <div class="fg"><label class="fl" for="rMethod">Método de pago</label>
+          <select class="fs" id="rMethod" name="method" [(ngModel)]="renewForm.paymentMethod"><option value="CASH">💵 Efectivo</option><option value="ONLINE">🌐 En línea</option></select>
+        </div>
+        <div class="fg" *ngIf="renewForm.paymentMethod === 'ONLINE'"><label class="fl" for="rRef">Referencia (opcional)</label>
+          <input class="fi" id="rRef" name="ref" maxlength="80" placeholder="Nequi, Daviplata..." [(ngModel)]="renewForm.onlineReference"></div>
+      </div>
+      <div class="modal-box" style="margin:0">
+        <div class="calc-row"><span>Vigencia actual</span><span>{{ statusOf(item) === 'EXPIRED' ? 'Venció el ' : 'Hasta el ' }}{{ shortDate(item.expiresAt) }}</span></div>
+        <div class="calc-row"><span>Nuevo periodo</span><span>{{ shortDate(renewPeriod().from) }} al {{ shortDate(renewPeriod().to) }}</span></div>
+        <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(renewForm.amount) }}</span></div>
+      </div>
+      <div class="form-hint" *ngIf="statusOf(item) === 'EXPIRED'">Como ya venció, el nuevo periodo empieza hoy.</div>
+      <div class="form-hint" *ngIf="statusOf(item) === 'ACTIVE'">Sigue vigente: los meses se suman desde su vencimiento, sin perder días.</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="closeModal()">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="saving()">↻ {{ saving() ? 'Renovando...' : 'Renovar y cobrar' }}</button>
+    </div>
+  </form>
+</div>
+
+<!-- Cancelar -->
+<div class="modal-overlay" *ngIf="modal() === 'cancel' && selected() as item" (backdropClick)="closeModal()">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="confirmCancel()">
+    <div class="modal-title">Cancelar mensualidad — {{ plate(item.plate) }}</div>
+    <div style="display:grid;gap:12px">
+      <div class="form-hint">{{ item.customerName }} · vigente hasta el {{ shortDate(item.expiresAt) }}</div>
+      <div class="warn-box">
+        ⚠ La placa dejará de entrar como mensualidad desde ahora. Esta acción no devuelve dinero: si corresponde un reembolso, hazlo por fuera del sistema.
+      </div>
+      <div class="fg"><label class="fl" for="cReason">Motivo <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+        <input class="fi" id="cReason" name="reason" maxlength="200" placeholder="Ej. el cliente vendió el vehículo" [(ngModel)]="cancelReason"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="closeModal()">Volver</button>
+      <button type="submit" class="btn btn-r" [disabled]="saving()">✕ {{ saving() ? 'Cancelando...' : 'Cancelar mensualidad' }}</button>
+    </div>
+  </form>
 </div>

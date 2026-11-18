@@ -16,6 +16,8 @@ export type Branch = {
   schedules?: Schedule[];
 };
 
+export type VehicleType = 'CAR' | 'MOTORCYCLE' | 'HEAVY' | 'BICYCLE';
+
 export type Ticket = {
   uuid: string;
   plate: string;
@@ -23,18 +25,44 @@ export type Ticket = {
   spaceCode: string;
   keySlotCode?: string;
   helmetLockerCode?: string;
+  /** Todos los casilleros de casco (una moto puede dejar hasta 2 cascos). */
+  helmetLockerCodes?: string[];
   monthlySubscription: boolean;
   checkedInAt: string;
   checkedOutAt?: string;
   status: string;
   amountDue?: number;
+  /** CASH u ONLINE; vacio si no hubo cobro (mensualidad o valor cero). */
+  paymentMethod?: string | null;
+  /** Codigo corto del ticket (SPP-XXXXXX). */
+  code?: string;
+  driverName?: string | null;
+  driverDocument?: string | null;
+  /** Descuento en pesos aplicado al cobrar la salida (amountDue ya lo tiene restado). */
+  discountAmount?: number | null;
+  discountReason?: string | null;
 };
+
+/** Resultado del envio del ticket por WhatsApp (plantilla de Meta). */
+export type WhatsappStatus = { sent: boolean; error?: string | null };
+/** Estado del canal: enabled=false cuando el envio esta en pausa en el servidor. */
+export type WhatsappChannel = { enabled: boolean; configured: boolean };
+export type CheckInResponse = { ticket: Ticket; whatsapp: WhatsappStatus | null };
 
 export type Resource = { code: string; kind: string; vehicleType?: string; occupied: boolean; reserved: boolean; assignedPlate?: string };
 export type ResourceBoard = { carSpaces: Resource[]; motorcycleSpaces: Resource[]; keySlots: Resource[]; helmetLockers: Resource[] };
-export type CashMovement = { id: number; ticketUuid: string; amount: number; method: string; paidAt: string };
-export type CashSummary = { todayRevenue: number; cashRevenue: number; digitalRevenue: number; movements: number; recentMovements: CashMovement[] };
 export type Schedule = { dayOfWeek: string; openTime: string | null; closeTime: string | null; closed: boolean };
+
+export type DashboardSummary = {
+  activeTickets: number;
+  occupiedSpaces: number;
+  availableSpaces: number;
+  carOccupiedSpaces: number;
+  carAvailableSpaces: number;
+  motorcycleOccupiedSpaces: number;
+  motorcycleAvailableSpaces: number;
+  todayRevenue: number;
+};
 
 export type BranchConfiguration = {
   id: number;
@@ -59,8 +87,11 @@ export type PricingRule = {
   displayName: string;
   pricingModel: 'FLAT' | 'PROGRESSIVE';
   flatAmount?: number | null;
+  /** Valor de la primera hora (o fraccion). */
   hourlyAmount?: number | null;
+  /** Valor por hora del tiempo despues de la primera hora (los minutos se cobran proporcionalmente). */
   additionalHourAmount?: number | null;
+  /** Ya no se usan en el calculo; se conservan por compatibilidad. */
   fractionAmount?: number | null;
   fractionMinutes: number;
   dayAmount?: number | null;
@@ -72,6 +103,20 @@ export type PricingRule = {
 };
 
 export type PricingCatalog = { rules: PricingRule[] };
+export type PricingCalculation = {
+  ticketUuid: string;
+  billableMinutes: number;
+  subtotal: number;
+  surcharges: number;
+  discounts: number;
+  total: number;
+  /** Desglose: dias cobrados con valor dia y si se cobro la primera hora. */
+  days: number;
+  firstHourCharged: boolean;
+  /** Minutos despues de la primera hora y lo que se cobro por ellos. */
+  additionalMinutes: number;
+  additionalAmount: number;
+};
 
 export type MonthlySubscription = {
   id: number;
@@ -86,5 +131,112 @@ export type MonthlySubscription = {
   startsAt: string;
   expiresAt: string;
   paidAt: string;
+  /** true solo si esta vigente hoy (no cancelada y sin vencer). */
   active: boolean;
+  /** ACTIVE (vigente), EXPIRED (vencida, se puede renovar) o CANCELLED. */
+  status?: 'ACTIVE' | 'EXPIRED' | 'CANCELLED';
+  renewedAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  /** Recordatorio de vencimiento por WhatsApp del periodo actual (automatico 5 dias antes, o manual). */
+  reminderSentAt?: string | null;
+  /** Error del ultimo intento de recordatorio; el servidor reintenta solo cada hora. */
+  reminderError?: string | null;
+  /** Solo al crear o renovar: confirmacion de pago por WhatsApp (plantilla notificacion_pago_mensualidad). null si no aplico. */
+  paymentWhatsapp?: WhatsappStatus | null;
 };
+
+export type PaymentMethod = 'CASH' | 'ONLINE';
+
+/** Cobro registrado en caja: PARKING al dar salida (horas o dia), MONTHLY al vender una mensualidad. */
+export type CashPayment = {
+  uuid: string;
+  concept: 'PARKING' | 'MONTHLY';
+  referenceUuid: string;
+  amount: number;
+  method: string;
+  onlineReference?: string | null;
+  plate?: string | null;
+  vehicleType?: string | null;
+  checkedInAt?: string | null;
+  checkedOutAt?: string | null;
+  description?: string | null;
+  registeredByName?: string | null;
+  paidAt: string;
+};
+
+export type CashTotals = { cash: number; online: number; parking: number; monthly: number; total: number; payments: number; vehicles: number };
+
+/** Turno de caja. payments solo viene en la caja actual y en el detalle de un turno. */
+export type CashSession = {
+  uuid: string;
+  status: 'OPEN' | 'CLOSED';
+  openedAt: string;
+  openedByName?: string | null;
+  openingFloat: number;
+  closedAt?: string | null;
+  closedByName?: string | null;
+  totals: CashTotals;
+  expectedCash: number;
+  countedCash?: number | null;
+  cashDifference?: number | null;
+  notes?: string | null;
+  payments?: CashPayment[] | null;
+};
+
+export type TodayCashSummary = { todayRevenue: number; cashRevenue: number; onlineRevenue: number; payments: number; yesterdayRevenue: number };
+
+/** Reporte por rango de fechas calculado en reporting-audit-service (cobros de caja + tickets). */
+export type ReportTotals = {
+  revenue: number;
+  parkingRevenue: number;
+  monthlyRevenue: number;
+  cashRevenue: number;
+  onlineRevenue: number;
+  entries: number;
+  paidExits: number;
+  monthlyEntries: number;
+  monthlySales: number;
+  stillInside: number;
+  averageTicket: number;
+  averageStayMinutes: number;
+  days: number;
+};
+export type ReportPayment = {
+  paidAt: string;
+  concept: 'PARKING' | 'MONTHLY';
+  plate?: string | null;
+  vehicleType?: string | null;
+  checkedInAt?: string | null;
+  checkedOutAt?: string | null;
+  method: string;
+  amount: number;
+  registeredByName?: string | null;
+  description?: string | null;
+};
+export type Report = {
+  from: string;
+  to: string;
+  vehicleType?: string | null;
+  totals: ReportTotals;
+  daily: { date: string; revenue: number; parkingRevenue: number; monthlyRevenue: number; entries: number }[];
+  byVehicleType: { vehicleType: string; entries: number; revenue: number }[];
+  byMethod: { method: string; payments: number; amount: number }[];
+  byCashier: { name: string; payments: number; amount: number }[];
+  payments: ReportPayment[];
+  paymentsTruncated: boolean;
+};
+
+/** Registro de auditoria (quien hizo que y cuando). */
+export type AuditEntry = {
+  id: number;
+  createdAt: string;
+  actorUuid?: string | null;
+  actor?: string | null;
+  action: string;
+  entityType?: string | null;
+  entityRef?: string | null;
+  details?: string | null;
+  source?: string | null;
+};
+export type AuditPage = { entries: AuditEntry[]; truncated: boolean; actors: string[] };

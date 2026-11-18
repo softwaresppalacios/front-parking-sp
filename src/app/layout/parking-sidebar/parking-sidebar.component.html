@@ -1,38 +1,50 @@
-<aside>
-  <div class="logo">
-    <div class="app-logo app-logo--image">
-      <img src="/img/application/logo-parking.png" alt="Logo SP Parqueaderos">
+<nav class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-icon">
+      <svg viewBox="0 0 22 22" fill="none"><text x="11" y="16" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-weight="900" font-size="16" fill="white">SP</text></svg>
     </div>
-    <div class="brand-title">
-      <strong>SP PARQ.</strong>
-      <span>GESTION PARQUEADERO</span>
+    <div>
+      <div class="sb-brand"><span>SP</span> PARQ.</div>
+      <div class="sb-sub">GESTIÓN PARQUEADERO</div>
     </div>
   </div>
-
-  <div class="shell-status"><i></i><span>PARQUEADERO ACTIVO</span></div>
-
-  <nav class="shell-nav">
-    <div class="nav-group">OPERACION</div>
-    <a routerLink="dashboard" routerLinkActive="active"><i class="pi pi-home"></i><span>Dashboard</span></a>
-    <a routerLink="entrada" routerLinkActive="active"><i class="pi pi-sign-in"></i><span>Registrar Entrada</span></a>
-    <a routerLink="salida" routerLinkActive="active"><i class="pi pi-sign-out"></i><span>Registrar Salida</span></a>
-    <a routerLink="caja" routerLinkActive="active"><i class="pi pi-wallet"></i><span>Caja del Dia</span></a>
-
-    <div class="nav-group">GESTION</div>
-    <a routerLink="mensualidades" routerLinkActive="active"><i class="pi pi-id-card"></i><span>Mensualidades</span></a>
-    <a routerLink="reportes" routerLinkActive="active"><i class="pi pi-chart-bar"></i><span>Reportes</span></a>
-    <a routerLink="config" routerLinkActive="active"><i class="pi pi-cog"></i><span>Configuracion</span></a>
-  </nav>
-
-  <div class="shell-footer">
-    <div class="user-card">
-      <div class="user-av"><i class="pi pi-user"></i></div>
+  <div class="sb-status" [class.closed]="!context.isOpenNow()">
+    <div class="sb-status-dot"></div>
+    <div class="sb-status-txt">{{ context.isOpenNow() ? 'PARQUEADERO ACTIVO' : 'FUERA DE HORARIO' }}</div>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Principal</div>
+    <a class="nav-item" routerLink="dashboard" routerLinkActive="active"><span class="nav-icon">⊞</span> <span class="nav-text">Dashboard</span></a>
+    <a class="nav-item" routerLink="entrada" routerLinkActive="active"><span class="nav-icon">↓</span> <span class="nav-text">Registrar Entrada</span></a>
+    <a class="nav-item" routerLink="salida" routerLinkActive="active"><span class="nav-icon">↑</span> <span class="nav-text">Registrar Salida</span></a>
+    <a class="nav-item" routerLink="caja" routerLinkActive="active"><span class="nav-icon">◈</span> <span class="nav-text">Caja del Día</span></a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-label">Gestión</div>
+    <a class="nav-item" routerLink="mensualidades" routerLinkActive="active">
+      <span class="nav-icon">♻</span> <span class="nav-text">Mensualidades</span>
+      <span class="nav-badge" *ngIf="context.expiringSubscriptions().length">{{ context.expiringSubscriptions().length }}</span>
+    </a>
+    <a class="nav-item" routerLink="historial-tickets" routerLinkActive="active"><span class="nav-icon">🎫</span> <span class="nav-text">Historial de Tickets</span></a>
+    <ng-container *ngIf="canManage()">
+      <a class="nav-item" routerLink="reportes" routerLinkActive="active"><span class="nav-icon">↗</span> <span class="nav-text">Reportes</span></a>
+      <a class="nav-item" routerLink="reportes-caja" routerLinkActive="active"><span class="nav-icon">📋</span> <span class="nav-text">Reportes de Caja</span></a>
+      <a class="nav-item" routerLink="auditoria" routerLinkActive="active"><span class="nav-icon">🛡</span> <span class="nav-text">Auditoría</span></a>
+    </ng-container>
+  </div>
+  <div class="sb-section" *ngIf="canManage()">
+    <div class="sb-label">Sistema</div>
+    <a class="nav-item" routerLink="config" routerLinkActive="active"><span class="nav-icon">⚙</span> <span class="nav-text">Configuración</span></a>
+  </div>
+  <div class="sb-bottom">
+    <div class="user-card" routerLink="/parkings" title="Cambiar de parqueadero">
+      <div class="user-av">{{ initials(context.parkingName()) }}</div>
       <div>
-        <div class="user-name">Administrador</div>
-        <div class="user-role">SP PARQUEADEROS</div>
+        <div class="user-name">{{ context.parkingName() }}</div>
+        <div class="user-role">{{ role() }} · {{ context.tenant()?.status === 'ACTIVE' || !context.tenant() ? 'Plan activo' : 'Plan inactivo' }}</div>
       </div>
     </div>
-
-    <button class="back" routerLink="/parkings">Cambiar parqueadero</button>
+    <a class="sb-logout" routerLink="/cambiar-clave">🔑 Cambiar contraseña</a>
+    <button type="button" class="sb-logout" (click)="logout()" [title]="'Sesión de ' + userName()">⏻ Cerrar sesión · {{ userName() }}</button>
   </div>
-</aside>
+</nav>

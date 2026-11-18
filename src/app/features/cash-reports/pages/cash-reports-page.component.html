@@ -1,0 +1,106 @@
+<div class="view">
+  <form class="rc-filter" (ngSubmit)="filter()">
+    <div class="fg"><label class="fl" for="rcFrom">Fecha inicio</label><input type="date" class="fi" id="rcFrom" name="from" [(ngModel)]="form.from"></div>
+    <div class="fg"><label class="fl" for="rcTo">Fecha fin</label><input type="date" class="fi" id="rcTo" name="to" [(ngModel)]="form.to"></div>
+    <div class="fg"><label class="fl" for="rcResp">Responsable</label>
+      <select class="fs" id="rcResp" name="responsible" [(ngModel)]="form.responsible">
+        <option value="">Todos</option>
+        <option *ngFor="let name of responsibles()" [value]="name">{{ name }}</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl" for="rcStatus">Estado</label>
+      <select class="fs" id="rcStatus" name="status" [(ngModel)]="form.status">
+        <option value="">Todos</option><option value="CLOSED">Cerrada</option><option value="OPEN">Abierta</option>
+      </select>
+    </div>
+    <div class="rc-actions">
+      <button class="btn-primary" type="submit" [disabled]="loading()">⌕ {{ loading() ? 'Filtrando...' : 'Filtrar' }}</button>
+      <button class="btn-excel all" type="button" (click)="exportAll()">📊 Exportar todo</button>
+    </div>
+  </form>
+
+  <div class="stats-row mb20">
+    <div class="stat-card red"><div class="stat-label">Total período</div><div class="stat-value">{{ compact(total()) }}</div><div class="stat-sub">{{ rangeLabel() }}</div></div>
+    <div class="stat-card green"><div class="stat-label">Efectivo total</div><div class="stat-value">{{ compact(cash()) }}</div><div class="stat-sub">{{ pct(cash()) }}% del total</div></div>
+    <div class="stat-card blue"><div class="stat-label">En línea total</div><div class="stat-value">{{ compact(online()) }}</div><div class="stat-sub">{{ pct(online()) }}% del total</div></div>
+    <div class="stat-card amber"><div class="stat-label">Turnos cerrados</div><div class="stat-value">{{ rows().length - pending() }}</div><div class="stat-sub">{{ pending() }} abiertos</div></div>
+  </div>
+
+  <div class="card mb16">
+    <div class="card-title">Historial de Turnos de Caja <span class="card-title-hint">Haz clic en una fila para ver el detalle</span></div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Fecha</th><th>Día</th><th>Apertura</th><th>Cierre</th><th>Responsable</th><th>Vehículos</th><th>Efectivo</th><th>En línea</th><th>Total</th><th>Diferencia</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          <tr *ngFor="let row of rows()" class="clickable" [class.sel]="selected()?.uuid === row.uuid" (click)="select(row)">
+            <td class="td-mono" style="white-space:nowrap">{{ date(row) }}</td>
+            <td><span class="chip sm" [class.amber]="isWeekend(row)" [class.green]="!isWeekend(row)">{{ day(row) }}</span></td>
+            <td class="td-mono sm">{{ hhmm(row.openedAt) }}</td>
+            <td class="td-mono sm">{{ row.closedAt ? hhmm(row.closedAt) : '—' }}</td>
+            <td style="font-size:12px;font-weight:500">{{ responsible(row) }}</td>
+            <td class="td-mono" style="text-align:center">{{ row.totals.vehicles }}</td>
+            <td class="td-money">{{ money(row.totals.cash) }}</td>
+            <td class="td-mono blue">{{ money(row.totals.online) }}</td>
+            <td class="td-total">{{ money(row.totals.total) }}</td>
+            <td class="td-mono sm" [style.color]="differenceColor(row.cashDifference)">{{ differenceText(row.cashDifference) }}</td>
+            <td><span class="sbadge" [class.cerrada]="row.status === 'CLOSED'" [class.abierta]="row.status === 'OPEN'">{{ statusLabel(row) }}</span></td>
+            <td><button type="button" class="btn btn-ghost sm" (click)="$event.stopPropagation(); select(row)">Ver →</button></td>
+          </tr>
+          <tr *ngIf="!rows().length"><td colspan="12" class="empty">{{ loading() ? 'Cargando...' : 'No hay turnos de caja en el período.' }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="rc-det" #detailPanel *ngIf="selected() as row">
+    <div class="rc-det-head">
+      <div>
+        <div class="rc-det-title">Detalle Turno — {{ day(row) }} {{ date(row) }}</div>
+        <div class="rc-det-meta">
+          Abrió: {{ row.openedByName || '—' }} a las {{ hhmm(row.openedAt) }}
+          &nbsp;·&nbsp; {{ row.closedAt ? 'Cerró: ' + (row.closedByName || '—') + ' a las ' + hhmm(row.closedAt) : 'Turno abierto' }}
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-excel" (click)="exportDetail()">📥 Exportar Excel — {{ date(row) }}</button>
+        <button class="btn btn-ghost" (click)="selected.set(null)">✕ Cerrar</button>
+      </div>
+    </div>
+    <div class="rc-totals">
+      <div class="rc-tbox red"><div class="rc-tlbl">Total del turno</div><div class="rc-tval">{{ money(row.totals.total) }}</div></div>
+      <div class="rc-tbox green"><div class="rc-tlbl">Efectivo</div><div class="rc-tval">{{ money(row.totals.cash) }}</div></div>
+      <div class="rc-tbox blue"><div class="rc-tlbl">En línea</div><div class="rc-tval">{{ money(row.totals.online) }}</div></div>
+    </div>
+    <div class="rc-kpis">
+      <div class="rc-kpi"><div class="lbl">VEHÍCULOS</div><div class="val">{{ row.totals.vehicles }}</div></div>
+      <div class="rc-kpi"><div class="lbl">TICKET PROMEDIO</div><div class="val green">{{ money(average(row)) }}</div></div>
+      <div class="rc-kpi"><div class="lbl">MENSUALIDADES</div><div class="val purple">{{ money(row.totals.monthly) }}</div></div>
+      <div class="rc-kpi"><div class="lbl">BASE</div><div class="val">{{ money(row.openingFloat) }}</div></div>
+      <div class="rc-kpi"><div class="lbl">ESPERADO / CONTADO</div><div class="val">{{ money(row.expectedCash) }} / {{ row.countedCash === null || row.countedCash === undefined ? '—' : money(row.countedCash) }}</div></div>
+      <div class="rc-kpi"><div class="lbl">DIFERENCIA</div><div class="val" [style.color]="differenceColor(row.cashDifference)">{{ differenceText(row.cashDifference) }}</div></div>
+      <div class="rc-kpi grow"><div class="lbl">OBSERVACIONES</div><div class="obs">{{ row.notes || (row.status === 'OPEN' ? 'Turno abierto — pendiente de cierre' : 'Sin novedades') }}</div></div>
+    </div>
+    <div class="card-title">Movimientos del turno</div>
+    <div class="tbl-wrap">
+      <table class="tbl" style="margin-top:10px">
+        <thead><tr><th>#</th><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Método</th><th>Cobró</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let payment of row.payments || []; let i = index">
+            <ng-container *ngIf="paymentRow(payment) as m">
+              <td class="td-mono xs">#{{ i + 1 }}</td>
+              <td><span class="plate">{{ m.plate }}</span></td>
+              <td><span class="tbadge {{ meta(m.vehicleType).cls }}">{{ meta(m.vehicleType).emoji }} {{ m.monthly ? 'Mensual' : meta(m.vehicleType).short }}</span></td>
+              <td class="td-mono sm">{{ m.entry }}</td>
+              <td class="td-mono sm">{{ m.exit }}</td>
+              <td class="td-mono sm muted">{{ m.duration }}</td>
+              <td><span class="chip sm {{ method(payment.method).cls }}" [title]="payment.onlineReference ? 'Ref: ' + payment.onlineReference : ''">{{ method(payment.method).icon }} {{ method(payment.method).label }}</span></td>
+              <td style="font-size:11px;color:var(--text3)">{{ payment.registeredByName || '—' }}</td>
+              <td class="td-money">{{ money(payment.amount) }}</td>
+            </ng-container>
+          </tr>
+          <tr *ngIf="!(row.payments || []).length"><td colspan="9" class="empty">Sin cobros en este turno</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

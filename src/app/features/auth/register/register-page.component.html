@@ -1,0 +1,47 @@
+<div class="login-screen scroll" [class.leaving]="leaving()">
+  <div class="lg-glow a"></div>
+  <div class="lg-glow b"></div>
+  <form class="lg-card" (ngSubmit)="register()" novalidate>
+    <div class="lg-logo" style="margin-bottom:22px">
+      <div class="lg-brand">SP <span>PARQUEADEROS</span></div>
+      <div class="lg-sub">SISTEMA DE GESTIÓN PROFESIONAL</div>
+    </div>
+    <div class="lg-title">Crear cuenta</div>
+    <div class="lg-hint">Registra tu usuario y tu parqueadero</div>
+
+    <label class="lg-lbl" for="rName">Nombre completo</label>
+    <input class="lg-inp" id="rName" name="fullName" placeholder="Juan Pérez" autocomplete="name" [(ngModel)]="form.fullName">
+
+    <label class="lg-lbl" for="rEmail">Correo electrónico</label>
+    <input type="email" class="lg-inp" id="rEmail" name="email" placeholder="tu@correo.co" autocomplete="email" [(ngModel)]="form.email">
+
+    <div class="lg-row">
+      <div>
+        <label class="lg-lbl" for="rPass">Contraseña</label>
+        <input type="password" class="lg-inp" id="rPass" name="password" placeholder="••••••••" autocomplete="new-password" [(ngModel)]="form.password">
+      </div>
+      <div>
+        <label class="lg-lbl" for="rConfirm">Confirmar</label>
+        <input type="password" class="lg-inp" id="rConfirm" name="confirm" placeholder="••••••••" autocomplete="new-password" [(ngModel)]="form.confirm">
+      </div>
+    </div>
+    <div class="lg-check">
+      <span [class.ok]="hasLength()">{{ hasLength() ? '✓' : '○' }} 8+ caracteres</span>
+      <span [class.ok]="hasLetter()">{{ hasLetter() ? '✓' : '○' }} letras</span>
+      <span [class.ok]="hasNumber()">{{ hasNumber() ? '✓' : '○' }} números</span>
+      <span [class.ok]="matches()">{{ matches() ? '✓' : '○' }} coinciden</span>
+    </div>
+
+    <div class="lg-divider" style="margin:6px 0 16px"></div>
+
+    <label class="lg-lbl" for="rParking">Nombre del parqueadero</label>
+    <input class="lg-inp" id="rParking" name="parkingName" placeholder="Parqueadero Central" [(ngModel)]="form.parkingName">
+
+    <label class="lg-lbl" for="rAddress">Dirección <span class="lg-optional">(opcional)</span></label>
+    <input class="lg-inp" id="rAddress" name="branchAddress" placeholder="Cll 25 #18-40, Pasto" autocomplete="street-address" [(ngModel)]="form.branchAddress">
+
+    <button type="submit" class="lg-btn" style="margin-top:6px" [disabled]="loading()">✓ &nbsp;{{ loading() ? 'CREANDO CUENTA...' : 'CREAR MI CUENTA' }}</button>
+    <div class="lg-error" *ngIf="error()">{{ error() }}</div>
+    <div class="lg-foot">¿Ya tienes cuenta? <a routerLink="/login">Inicia sesión</a></div>
+  </form>
+</div>

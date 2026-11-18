@@ -1,26 +1,42 @@
-<main class="tenant-board">
-  <header class="page-head page-head--stacked">
-    <div>
-      <span class="eyebrow">TABLERO MULTITENANT</span>
-      <h1>Selecciona o crea un parqueadero</h1>
-      <p>Administra múltiples sedes desde un tablero más claro, visual y cómodo para operar.</p>
+<main class="tenant-screen">
+  <div class="lg-glow a"></div>
+  <div class="lg-glow b"></div>
+  <div class="tenant-wrap">
+    <header class="tenant-head">
+      <div>
+        <div class="lg-sub">HOLA, {{ auth.user()?.fullName?.toUpperCase() }}</div>
+        <div class="tenant-title">Selecciona tu <span>parqueadero</span></div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="chip red">{{ auth.tenants().length }} parqueaderos</span>
+        <button class="btn-secondary" (click)="logout()">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <form class="card mb20" (ngSubmit)="createTenant()">
+      <div class="card-title">Nuevo parqueadero</div>
+      <div class="filter-row">
+        <div class="fg"><label class="fl" for="tName">Nombre <span>*</span></label><input class="fi" id="tName" name="name" [(ngModel)]="newTenantName" placeholder="Parqueadero Central"></div>
+        <div class="fg"><label class="fl" for="tAddress">Dirección sede principal</label><input class="fi" id="tAddress" name="address" [(ngModel)]="newBranchAddress" placeholder="Cll 25 #18-40, Pasto"></div>
+        <button class="btn-primary" type="submit" [disabled]="creating()">+ Crear parqueadero</button>
+      </div>
+    </form>
+
+    <div class="card" *ngIf="!auth.tenants().length">
+      <div class="empty-state" style="padding:30px">
+        <div class="icon">🅿️</div>
+        <div class="title">Aún no tienes parqueaderos</div>
+        <div class="text">Crea el primero con el formulario de arriba.</div>
+      </div>
     </div>
-    <div class="page-head__meta">
-      <span class="chip red">{{ tenants().length }} parqueaderos</span>
-      <button (click)="logout()">Salir</button>
+    <div class="tenant-grid">
+      <button type="button" class="tenant-card" *ngFor="let tenant of auth.tenants()" (click)="open(tenant)">
+        <span class="chip" [class.green]="tenant.status === 'ACTIVE'" [class.red]="tenant.status !== 'ACTIVE'">{{ tenant.status === 'ACTIVE' ? '✓ ACTIVO' : tenant.status }}</span>
+        <span class="chip blue" style="margin-left:6px">{{ roleLabel(tenant.role) }}</span>
+        <div class="tenant-card-name">{{ tenant.name }}</div>
+        <div class="tenant-card-meta">Plan {{ tenant.planName }} · {{ tenant.branchCount }} de {{ tenant.branchLimit }} sedes</div>
+        <code>{{ tenant.uuid }}</code>
+      </button>
     </div>
-  </header>
-  <section class="create-band">
-    <input [(ngModel)]="newTenantName" placeholder="Nombre del parqueadero">
-    <input [(ngModel)]="newBranchAddress" placeholder="Direccion sede principal">
-    <button (click)="createTenant()">Crear parqueadero</button>
-  </section>
-  <section class="tenant-grid">
-    <article class="tenant-card" *ngFor="let tenant of tenants()" (click)="open(tenant)">
-      <span class="status">{{ tenant.status }}</span>
-      <h2>{{ tenant.name }}</h2>
-      <p>{{ tenant.planName }} · {{ tenant.branches.length }} sedes de {{ tenant.branchLimit }}</p>
-      <code>{{ tenant.uuid }}</code>
-    </article>
-  </section>
+  </div>
 </main>

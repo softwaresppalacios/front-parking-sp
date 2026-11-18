@@ -1,27 +1,107 @@
-<header class="page-head"><h1>Registrar Salida</h1></header>
-<section class="form-panel">
-  <label>Buscar placa</label><input [(ngModel)]="plate" (ngModelChange)="onPlateChange($event)" placeholder="ABC123" maxlength="10">
-  <button (click)="search()" [disabled]="calculating() || paying()">
-    {{ calculating() ? 'Calculando tarifa...' : 'Buscar vehiculo' }}
-  </button>
-  <p class="notice" *ngIf="message()">{{ message() }}</p>
-  <p class="error" *ngIf="error()">{{ error() }}</p>
-  <article class="receipt" *ngIf="found()">
-    <h2>{{ found()?.plate }}</h2>
-    <p>Entrada: {{ found()?.checkedInAt | date:'short' }}</p>
-    <p>Espacio: {{ found()?.spaceCode }}</p>
-    <p *ngIf="found()?.keySlotCode || found()?.helmetLockerCode">
-      <span *ngIf="found()?.keySlotCode">Llave: {{ found()?.keySlotCode }}</span>
-      <span *ngIf="found()?.keySlotCode && found()?.helmetLockerCode"> · </span>
-      <span *ngIf="found()?.helmetLockerCode">Casco: {{ found()?.helmetLockerCode }}</span>
-    </p>
-    <p *ngIf="!found()?.keySlotCode && !found()?.helmetLockerCode">Sin llave/casco</p>
-    <p *ngIf="!found()?.monthlySubscription">Tarifa calculada con la configuracion vigente.</p>
-    <p *ngIf="found()?.monthlySubscription">Mensualidad activa: no se genera cobro.</p>
-    <b>Total: {{ money(total()) }}</b>
-    <select [(ngModel)]="paymentMethod"><option value="CASH">Efectivo</option><option value="DIGITAL">Pago digital</option></select>
-    <button (click)="checkOut()" [disabled]="paying() || calculating()">
-      {{ paying() ? 'Registrando pago...' : 'Registrar salida y pago' }}
-    </button>
-  </article>
-</section>
+<div class="view">
+  <form class="search-row" (ngSubmit)="find()">
+    <input class="fi search" name="search" placeholder="BUSCAR POR PLACA..." list="activePlates" autocomplete="off"
+           [ngModel]="search" (ngModelChange)="onSearchChange($event)">
+    <datalist id="activePlates">
+      <option *ngFor="let ticket of activeTickets()" [value]="plate(ticket.plate)"></option>
+    </datalist>
+    <button class="btn-primary" type="submit" [disabled]="searching()">⌕ {{ searching() ? 'Buscando...' : 'Buscar' }}</button>
+    <button class="btn-secondary" type="button" *ngIf="latestActive() as latest" (click)="useLatest()">Último: {{ latest.plate }}</button>
+  </form>
+
+  <div class="vehicle-found" *ngIf="found() as ticket; else emptyState">
+    <div class="g65">
+      <div>
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap">
+          <div class="found-plate">{{ plate(ticket.plate) }}</div>
+          <div>
+            <div class="chip red" style="margin-bottom:4px">{{ meta(ticket.vehicleType).emoji }} {{ context.vehicleName(ticket.vehicleType) }}</div><br>
+            <div class="chip blue" *ngIf="ticket.spaceCode">Slot {{ ticket.spaceCode }}</div>
+            <div class="chip amber" *ngIf="ticket.monthlySubscription" style="margin-left:4px">⭐ Mensualidad</div>
+          </div>
+        </div>
+        <div class="g2" style="margin-bottom:14px">
+          <div class="info-box">
+            <div class="info-lbl">Hora de entrada</div>
+            <div class="info-val">{{ hhmm(ticket.checkedInAt) }}</div>
+          </div>
+          <div class="info-box">
+            <div class="info-lbl">Tiempo transcurrido</div>
+            <div class="time-counter">{{ elapsedText() }}</div>
+          </div>
+        </div>
+        <div class="info-line">
+          <ng-container *ngIf="ticket.keySlotCode">🔑 Tablero llaves: <span class="amber">{{ ticket.keySlotCode }}</span> &nbsp;·&nbsp; </ng-container>
+          <ng-container *ngIf="helmets(ticket).length">⛑ {{ helmets(ticket).length > 1 ? 'Casilleros casco' : 'Casillero casco' }}: <span class="amber">{{ helmets(ticket).join(', ') }}</span> &nbsp;·&nbsp; </ng-container>
+          📍 Slot: <span class="red">{{ ticket.spaceCode || 'Sin asignar' }}</span>
+        </div>
+        <div class="pay-calc">
+          <ng-container *ngIf="!ticket.monthlySubscription; else monthlyCalc">
+            <div class="calc-row"><span>Tarifa</span><span>{{ rateText() }}</span></div>
+            <div class="calc-row"><span>Tiempo</span><span>{{ elapsedText() }}</span></div>
+            <div class="calc-row" *ngFor="let row of breakdown()"><span>{{ row.label }}</span><span>{{ money(row.amount) }}</span></div>
+            <ng-container *ngIf="discount() > 0">
+              <div class="calc-row"><span>Subtotal</span><span>{{ money(total()) }}</span></div>
+              <div class="calc-row" style="color:var(--green)"><span>Descuento{{ discountReason.trim() ? ' (' + discountReason.trim() + ')' : '' }}</span><span>−{{ money(discount()) }}</span></div>
+            </ng-container>
+            <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(payable()) }}</span></div>
+          </ng-container>
+          <ng-template #monthlyCalc>
+            <div class="calc-row"><span>Modalidad</span><span>Mensualidad activa</span></div>
+            <div class="calc-row"><span>Tiempo</span><span>{{ elapsedText() }}</span></div>
+            <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(0) }}</span></div>
+          </ng-template>
+        </div>
+        <ng-container *ngIf="!ticket.monthlySubscription">
+          <button class="btn btn-ghost sm" type="button" style="margin-top:10px" (click)="toggleDiscount()" [disabled]="paying()">
+            {{ showDiscount() ? '✕ Quitar descuento' : '🏷 Aplicar descuento' }}
+          </button>
+          <div class="form-grid-2" style="margin-top:10px" *ngIf="showDiscount()">
+            <div class="fg">
+              <label class="fl" for="xDiscount">Descuento en pesos</label>
+              <input class="fi" id="xDiscount" name="discount" type="number" min="0" step="100" [max]="total()" placeholder="Ej: 2000"
+                [ngModel]="discount() || null" (ngModelChange)="setDiscount($event)">
+            </div>
+            <div class="fg">
+              <label class="fl" for="xDiscountReason">Motivo <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+              <input class="fi" id="xDiscountReason" name="discountReason" maxlength="120" placeholder="Cliente frecuente, convenio..." [(ngModel)]="discountReason">
+            </div>
+          </div>
+          <div class="form-hint" *ngIf="showDiscount() && discount() > total()" style="color:var(--red)">El descuento no puede ser mayor que el total ({{ money(total()) }}).</div>
+        </ng-container>
+        <div class="pay-methods" *ngIf="!ticket.monthlySubscription && payable() > 0">
+          <div class="pay-method" [class.selected]="paymentMethod() === 'CASH'" (click)="paymentMethod.set('CASH')"><span class="pay-method-icon">💵</span>Efectivo</div>
+          <div class="pay-method" [class.selected]="paymentMethod() === 'ONLINE'" (click)="paymentMethod.set('ONLINE')"><span class="pay-method-icon">🌐</span>En línea</div>
+        </div>
+        <div class="fg" style="margin-top:10px" *ngIf="!ticket.monthlySubscription && payable() > 0 && paymentMethod() === 'ONLINE'">
+          <label class="fl" for="xRef">Referencia del pago <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+          <input class="fi" id="xRef" name="onlineReference" maxlength="80" placeholder="Nequi, Daviplata, transferencia..." [(ngModel)]="onlineReference">
+        </div>
+        <button class="btn-primary green btn-block" style="margin-top:14px" (click)="confirm()" [disabled]="paying()">
+          ↑ {{ paying() ? 'Registrando...' : (ticket.monthlySubscription ? 'Confirmar Salida' : 'Confirmar Salida y Cobro') }}
+        </button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" type="button" (click)="reprint()" [disabled]="paying()">🖨 Reimprimir ticket de entrada</button>
+        <button class="btn btn-ghost" style="width:100%;margin-top:8px" type="button" (click)="cancel()" [disabled]="paying()">Cancelar</button>
+      </div>
+      <div class="ticket">
+        <div class="t-header"><div class="t-logo">SP PARQUEADEROS</div><div class="t-park">{{ context.parkingName() }}</div></div>
+        <div class="t-plate">{{ plate(ticket.plate) }}</div>
+        <div class="t-row"><span class="t-key">Entrada</span><span class="t-val">{{ hhmm(ticket.checkedInAt) }}</span></div>
+        <div class="t-row"><span class="t-key">Salida</span><span class="t-val">{{ hhmm(now()) }}</span></div>
+        <div class="t-row"><span class="t-key">Tiempo</span><span class="t-val">{{ elapsedText() }}</span></div>
+        <div class="t-row" *ngIf="discount() > 0"><span class="t-key">Descuento</span><span class="t-val">−{{ money(discount()) }}</span></div>
+        <div class="t-row"><span class="t-key">Total</span><span class="t-val total">{{ money(payable()) }}</span></div>
+        <div class="t-row"><span class="t-key">Pago</span><span class="t-val">{{ ticket.monthlySubscription ? 'Mensualidad' : methodLabel() }}</span></div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #emptyState>
+    <div class="empty-state">
+      <div class="icon">⌕</div>
+      <div class="title">Buscar vehículo por placa</div>
+      <div class="text">Ingrese la placa del vehículo que va a salir</div>
+      <div class="text" style="margin-top:6px" *ngIf="activeTickets().length">{{ activeTickets().length }} vehículos adentro en este momento</div>
+    </div>
+  </ng-template>
+</div>

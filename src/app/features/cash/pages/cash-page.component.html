@@ -1,14 +1,136 @@
-<header class="page-head"><h1>Caja del Dia</h1><button (click)="load()">Actualizar</button></header>
-<section class="stats">
-  <article><small>Total recaudado</small><b>{{ money(summary()?.todayRevenue || 0) }}</b></article>
-  <article><small>Efectivo</small><b>{{ money(summary()?.cashRevenue || 0) }}</b></article>
-  <article><small>Digital</small><b>{{ money(summary()?.digitalRevenue || 0) }}</b></article>
-  <article><small>Movimientos</small><b>{{ summary()?.movements || 0 }}</b></article>
-</section>
-<section class="panel">
-  <h2>Movimientos del dia</h2>
-  <table>
-    <tr><th>#</th><th>Ticket</th><th>Hora</th><th>Pago</th><th>Valor</th></tr>
-    <tr *ngFor="let m of summary()?.recentMovements"><td>{{ m.id }}</td><td>{{ m.ticketUuid }}</td><td>{{ m.paidAt | date:'shortTime' }}</td><td>{{ m.method === 'CASH' ? 'Efectivo' : 'Digital' }}</td><td>{{ money(+m.amount) }}</td></tr>
-  </table>
-</section>
+<div class="view">
+  <div class="loading-note" *ngIf="session() === undefined">Cargando caja...</div>
+
+  <div class="caja-header" *ngIf="session() === null">
+    <div>
+      <div class="caja-lbl">Caja cerrada</div>
+      <div class="caja-total" style="font-size:1.6rem">No hay un turno abierto</div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text3)">
+        Abre la caja con la base de efectivo del turno. Si registras un cobro sin abrirla, se abrirá automáticamente con base $0.
+      </div>
+    </div>
+    <div class="caja-summary" style="display:flex;align-items:center;justify-content:flex-end">
+      <button class="close-btn" (click)="startOpen()">◈ Abrir Caja</button>
+    </div>
+  </div>
+
+  <div class="caja-header" *ngIf="session() as current">
+    <div>
+      <div class="caja-lbl">Total recaudado en este turno</div>
+      <div class="caja-total">{{ money(current.totals.total) }}</div>
+      <div style="margin-top:8px;display:flex;gap:10px;flex-wrap:wrap">
+        <span class="chip green">💵 Efectivo: {{ money(current.totals.cash) }}</span>
+        <span class="chip blue">🌐 En línea: {{ money(current.totals.online) }}</span>
+        <span class="chip amber" *ngIf="current.totals.monthly">♻ Mensualidades: {{ money(current.totals.monthly) }}</span>
+      </div>
+    </div>
+    <div class="caja-summary">
+      <div class="caja-lbl" style="margin-bottom:8px">Turno abierto</div>
+      <div class="line">Apertura: <b>{{ hhmm(current.openedAt) }}</b> · {{ current.openedByName || '—' }}</div>
+      <div class="line">Base inicial: <b>{{ money(current.openingFloat) }}</b></div>
+      <div class="line">Efectivo esperado en caja: <b>{{ money(current.expectedCash) }}</b></div>
+      <div class="line">Vehículos atendidos: <b>{{ current.totals.vehicles }}</b></div>
+      <div class="line green">Promedio/vehículo: <b>{{ money(average()) }}</b></div>
+      <div style="display:flex;gap:8px;align-items:center;justify-content:flex-end">
+        <button class="close-btn" (click)="startClose()">◈ Cerrar Caja</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="g65" *ngIf="session() !== undefined">
+    <div class="card">
+      <div class="card-title">Movimientos del Turno <span class="card-title-hint"><button class="btn btn-ghost sm" (click)="load()">↻ Actualizar</button></span></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>#</th><th>Placa</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Tiempo</th><th>Pago</th><th>Cobró</th><th>Valor</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let payment of payments(); let i = index">
+              <ng-container *ngIf="row(payment, i) as r">
+                <td class="td-mono xs">#{{ r.n }}</td>
+                <td><span class="plate">{{ r.plate }}</span></td>
+                <td><span class="tbadge {{ meta(r.vehicleType).cls }}">{{ meta(r.vehicleType).emoji }} {{ r.monthly ? 'mensual' : meta(r.vehicleType).short.toLowerCase() }}</span></td>
+                <td class="td-mono sm">{{ r.entry }}</td>
+                <td class="td-mono sm">{{ r.exit }}</td>
+                <td class="td-mono sm muted">{{ r.duration }}</td>
+                <td>
+                  <span class="chip sm {{ method(payment.method).cls }}" [title]="payment.onlineReference ? 'Ref: ' + payment.onlineReference : ''">{{ method(payment.method).icon }} {{ method(payment.method).label }}</span>
+                </td>
+                <td style="font-size:11px;color:var(--text3)">{{ payment.registeredByName || '—' }}</td>
+                <td class="td-money">{{ money(payment.amount) }}</td>
+              </ng-container>
+            </tr>
+            <tr *ngIf="!payments().length"><td colspan="9" class="empty">{{ session() ? 'Aún no hay cobros en este turno' : 'Abre la caja para empezar a registrar cobros' }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div class="card-title">Ingresos por hora</div>
+        <div class="chart-bars">
+          <div class="cbar-wrap" *ngFor="let bar of hourly()" [title]="bar.label + ': ' + money(bar.value)">
+            <div class="cbar red" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
+            <div class="cbar-lbl">{{ bar.label }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="card" *ngIf="canManage">
+        <div class="card-title">Cierres Anteriores</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div class="prev-close" *ngFor="let item of previous()" [title]="item.closedByName ? 'Cerró: ' + item.closedByName : ''">
+            <span>{{ sessionLabel(item) }}</span>
+            <span>{{ money(item.totals.total) }}
+              <small [style.color]="(item.cashDifference || 0) < 0 ? 'var(--red)' : (item.cashDifference || 0) > 0 ? 'var(--amber)' : 'var(--green)'"> · {{ differenceText(item.cashDifference) }}</small>
+            </span>
+          </div>
+          <div class="empty-note" *ngIf="!previous().length">Aún no hay cierres anteriores registrados.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" *ngIf="openModal()" (backdropClick)="openModal.set(false)">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="confirmOpen()">
+    <div class="modal-title">◈ Abrir Caja</div>
+    <div class="fg"><label class="fl" for="cashFloat">Base de efectivo <span>*</span></label>
+      <input class="fi" id="cashFloat" name="openingFloat" type="number" min="0" step="1000" [(ngModel)]="openingFloat"></div>
+    <div style="font-size:11px;color:var(--text3);margin-top:8px">Dinero en efectivo con el que arranca el turno (para dar cambio). Al cerrar se sumará a lo cobrado en efectivo.</div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="openModal.set(false)">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="saving()">✓ {{ saving() ? 'Abriendo...' : 'Abrir Caja' }}</button>
+    </div>
+  </form>
+</div>
+
+<div class="modal-overlay" *ngIf="closeModal() && session() as current" (backdropClick)="closeModal.set(false)">
+  <form class="modal" (click)="$event.stopPropagation()" (ngSubmit)="confirmClose()">
+    <div class="modal-title">◈ Cerrar Caja — abierta a las {{ hhmm(current.openedAt) }}</div>
+    <div class="modal-box">
+      <div class="calc-row"><span>Base inicial</span><span>{{ money(current.openingFloat) }}</span></div>
+      <div class="calc-row"><span>Cobrado en efectivo</span><span>{{ money(current.totals.cash) }}</span></div>
+      <div class="calc-row"><span style="font-weight:600">Efectivo esperado en caja</span><span style="font-weight:600">{{ money(current.expectedCash) }}</span></div>
+      <div class="divider" style="margin:8px 0"></div>
+      <div class="calc-row"><span>Cobrado en línea</span><span>{{ money(current.totals.online) }}</span></div>
+      <div class="calc-row"><span>Por horas o día ({{ current.totals.vehicles }} vehículos)</span><span>{{ money(current.totals.parking) }}</span></div>
+      <div class="calc-row"><span>Mensualidades</span><span>{{ money(current.totals.monthly) }}</span></div>
+      <div class="divider" style="margin:8px 0"></div>
+      <div class="calc-row"><span style="font-weight:600;font-size:15px">TOTAL DEL TURNO</span><span class="cv big">{{ money(current.totals.total) }}</span></div>
+    </div>
+    <div class="form-grid-2">
+      <div class="fg"><label class="fl" for="cashCounted">Efectivo contado <span>*</span></label>
+        <input class="fi" id="cashCounted" name="countedCash" type="number" min="0" step="100" placeholder="0" [(ngModel)]="countedCash"></div>
+      <div class="fg"><label class="fl">Diferencia</label>
+        <div class="fi" style="font-weight:600" [style.color]="difference() === null ? 'var(--text3)' : difference()! < 0 ? 'var(--red)' : difference()! > 0 ? 'var(--amber)' : 'var(--green)'">
+          {{ difference() === null ? '—' : differenceText(difference()) }}
+        </div>
+      </div>
+    </div>
+    <div class="fg" style="margin-top:12px"><label class="fl" for="closeNotes">Observaciones</label>
+      <input class="fi" id="closeNotes" name="notes" maxlength="500" placeholder="Novedades del turno..." [(ngModel)]="notes"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" (click)="closeModal.set(false)">Cancelar</button>
+      <button type="submit" class="btn btn-g" [disabled]="saving()">✓ {{ saving() ? 'Cerrando...' : 'Confirmar Cierre de Caja' }}</button>
+    </div>
+  </form>
+</div>

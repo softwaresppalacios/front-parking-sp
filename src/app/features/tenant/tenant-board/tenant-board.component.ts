@@ -4,7 +4,10 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { API } from '../../../core/api/api.config';
+import { AuthService, TenantAccess, roleLabel } from '../../../core/auth/auth.service';
 import { Tenant } from '../../../core/models';
+import { ToastService } from '../../../core/ui/toast.service';
+import { apiErrorMessage } from '../../../core/utils';
 
 @Component({
   selector: 'tenant-board',
@@ -15,26 +18,36 @@ import { Tenant } from '../../../core/models';
 export class TenantBoardComponent {
   private http = inject(HttpClient);
   private router = inject(Router);
-  tenants = signal<Tenant[]>([]);
+  private toast = inject(ToastService);
+  auth = inject(AuthService);
+  creating = signal(false);
   newTenantName = '';
   newBranchAddress = '';
+  roleLabel = roleLabel;
 
-  constructor() { this.load(); }
-
-  load() {
-    this.http.get<Tenant[]>(`${API.tenant}/tenants`).subscribe(v => this.tenants.set(v));
+  constructor() {
+    this.auth.refresh().subscribe();
   }
 
   createTenant() {
-    if (!this.newTenantName.trim()) return;
-    this.http.post<Tenant>(`${API.tenant}/tenants`, { name: this.newTenantName, branchAddress: this.newBranchAddress || 'Sede principal' })
-      .subscribe(t => {
-        this.tenants.update(all => [t, ...all]);
-        this.newTenantName = '';
-        this.newBranchAddress = '';
+    if (!this.newTenantName.trim()) { this.toast.err('Ingrese el nombre del parqueadero'); return; }
+    this.creating.set(true);
+    this.http.post<Tenant>(`${API.tenant}/tenants`, { name: this.newTenantName.trim(), branchAddress: this.newBranchAddress.trim() || null })
+      .subscribe({
+        next: tenant => {
+          this.toast.ok(`Parqueadero ${tenant.name} creado`);
+          this.newTenantName = '';
+          this.newBranchAddress = '';
+          this.creating.set(false);
+          this.auth.refresh().subscribe();
+        },
+        error: err => {
+          this.toast.err(apiErrorMessage(err, 'No se pudo crear el parqueadero'));
+          this.creating.set(false);
+        }
       });
   }
 
-  open(tenant: Tenant) { this.router.navigateByUrl(`/parking/${tenant.uuid}/dashboard`); }
-  logout() { localStorage.removeItem('sp_session'); this.router.navigateByUrl('/login'); }
+  open(tenant: TenantAccess) { this.router.navigateByUrl(`/parking/${tenant.uuid}/dashboard`); }
+  logout() { this.auth.logout(); }
 }

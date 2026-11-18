@@ -1,0 +1,118 @@
+<div class="view">
+  <form class="rc-filter" (ngSubmit)="load()">
+    <div class="fg"><label class="fl" for="hFrom">Entrada desde</label><input type="date" class="fi" id="hFrom" name="from" [(ngModel)]="range.from"></div>
+    <div class="fg"><label class="fl" for="hTo">Entrada hasta</label><input type="date" class="fi" id="hTo" name="to" [(ngModel)]="range.to"></div>
+    <div class="rc-actions">
+      <button class="btn-primary" type="submit" [disabled]="loading()">⌕ {{ loading() ? 'Cargando...' : 'Buscar' }}</button>
+      <button class="btn-excel" type="button" (click)="exportCsv()" [disabled]="!filtered().length">📊 Excel</button>
+    </div>
+  </form>
+
+  <div class="card mb16">
+    <div class="filter-row">
+      <div class="fg"><label class="fl" for="hPlate">Placa</label>
+        <input class="fi" id="hPlate" placeholder="ABC 123" style="text-transform:uppercase" [ngModel]="plate()" (ngModelChange)="plate.set($event)"></div>
+      <div class="fg"><label class="fl" for="hStatus">Estado</label>
+        <select class="fs" id="hStatus" [ngModel]="status()" (ngModelChange)="status.set($event)">
+          <option value="">Todos</option><option value="INSIDE">Adentro</option><option value="OUT">Ya salieron</option>
+        </select></div>
+      <div class="fg"><label class="fl" for="hType">Tipo</label>
+        <select class="fs" id="hType" [ngModel]="type()" (ngModelChange)="type.set($event)">
+          <option value="">Todos</option>
+          <option *ngFor="let t of vehicleTypes" [value]="t">{{ meta(t).emoji }} {{ meta(t).short }}</option>
+        </select></div>
+      <div class="fg"><label class="fl" for="hModality">Modalidad</label>
+        <select class="fs" id="hModality" [ngModel]="modality()" (ngModelChange)="modality.set($event)">
+          <option value="">Todas</option><option value="HOURLY">Por tiempo</option><option value="MONTHLY">Mensualidad</option>
+        </select></div>
+      <button class="btn-secondary" type="button" (click)="clearFilters()">Limpiar</button>
+    </div>
+  </div>
+
+  <div class="card mb20" *ngIf="error() && !tickets().length">
+    <div class="empty-state" style="padding:30px"><div class="icon">⚠</div><div class="title">No se pudo cargar el historial</div><div class="text">{{ error() }}</div></div>
+  </div>
+
+  <div class="stats-row mb20">
+    <div class="stat-card blue"><div class="stat-label">Entradas</div><div class="stat-value">{{ stats().entries }}</div><div class="stat-sub">{{ rangeLabel() }} · {{ stats().monthly }} de mensualidad</div></div>
+    <div class="stat-card red"><div class="stat-label">Aún adentro</div><div class="stat-value">{{ stats().inside }}</div><div class="stat-sub">{{ stats().exits }} ya salieron</div></div>
+    <div class="stat-card amber"><div class="stat-label">Estadía promedio</div><div class="stat-value">{{ durationText(stats().averageStay) }}</div><div class="stat-sub">la más larga: {{ durationText(stats().longestStay) }}</div></div>
+    <div class="stat-card green"><div class="stat-label">Cobrado por tickets</div><div class="stat-value">{{ money(stats().revenue) }}</div><div class="stat-sub">hora pico: {{ peakHour() }}</div></div>
+  </div>
+
+  <div class="g2 mb20">
+    <div class="card">
+      <div class="card-title">Entradas por hora del día</div>
+      <div class="chart-bars">
+        <div class="cbar-wrap" *ngFor="let bar of byHour()" [title]="bar.label + ':00 · ' + bar.value + ' entradas'">
+          <div class="cbar red" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
+          <div class="cbar-lbl">{{ bar.label }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Entradas por día de la semana</div>
+      <div class="chart-bars">
+        <div class="cbar-wrap" *ngFor="let bar of byWeekDay()" [title]="bar.label + ' · ' + bar.value + ' entradas'">
+          <div class="cbar green" [class.empty]="!bar.value" [style.height.%]="bar.value ? bar.pct : 2"></div>
+          <div class="cbar-lbl">{{ bar.label }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Tickets
+      <span class="card-title-hint" *ngIf="truncated()">se muestran {{ rows().length }} de {{ filtered().length }}; exporta a Excel o acota los filtros</span>
+      <span class="card-title-hint" *ngIf="!truncated()">{{ filtered().length }} tickets · clic en uno para ver el detalle</span>
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>Entrada</th><th>Placa</th><th>Tipo</th><th>Lugar</th><th>Salida</th><th>Tiempo</th><th>Valor</th><th>Estado</th></tr></thead>
+        <tbody>
+          <ng-container *ngFor="let ticket of rows()">
+            <tr class="clickable" [class.sel]="selected()?.uuid === ticket.uuid" (click)="select(ticket)">
+              <td class="td-mono sm muted" style="white-space:nowrap">{{ shortDate(dateKey(ticket.checkedInAt)) }} {{ hhmm(ticket.checkedInAt) }}</td>
+              <td><span class="plate">{{ plateText(ticket.plate) }}</span></td>
+              <td><span class="tbadge {{ meta(ticket.vehicleType).cls }}">{{ meta(ticket.vehicleType).emoji }} {{ meta(ticket.vehicleType).short }}</span></td>
+              <td class="td-mono red">{{ ticket.spaceCode || '—' }}</td>
+              <td class="td-mono sm">{{ ticket.checkedOutAt ? (dateKey(ticket.checkedOutAt) === dateKey(ticket.checkedInAt) ? hhmm(ticket.checkedOutAt) : shortDate(dateKey(ticket.checkedOutAt)) + ' ' + hhmm(ticket.checkedOutAt)) : '—' }}</td>
+              <td class="td-mono sm muted">{{ stay(ticket) }}</td>
+              <td class="td-money">{{ value(ticket) }}</td>
+              <td>
+                <span class="sbadge activo" *ngIf="ticket.status === 'ACTIVE' && !ticket.monthlySubscription">adentro</span>
+                <span class="sbadge mensual" *ngIf="ticket.status === 'ACTIVE' && ticket.monthlySubscription">adentro · mensual</span>
+                <span class="sbadge salido" *ngIf="ticket.status !== 'ACTIVE'">salió</span>
+              </td>
+            </tr>
+            <tr *ngIf="selected()?.uuid === ticket.uuid">
+              <td colspan="8" style="background:var(--bg)">
+                <div class="g2" style="gap:10px">
+                  <div>
+                    <div class="calc-row plain"><span>Ticket</span><span>{{ ticket.code || '—' }}</span></div>
+                    <div class="calc-row plain"><span>Modalidad</span><span>{{ ticket.monthlySubscription ? 'Mensualidad' : 'Por tiempo' }}</span></div>
+                    <div class="calc-row plain"><span>Entrada</span><span>{{ shortDate(dateKey(ticket.checkedInAt)) }} {{ hhmm(ticket.checkedInAt) }}</span></div>
+                    <div class="calc-row plain"><span>Salida</span><span>{{ ticket.checkedOutAt ? shortDate(dateKey(ticket.checkedOutAt)) + ' ' + hhmm(ticket.checkedOutAt) : 'Sigue adentro' }}</span></div>
+                    <div class="calc-row plain"><span>Tiempo</span><span>{{ stay(ticket) }}</span></div>
+                  </div>
+                  <div>
+                    <div class="calc-row plain"><span>Lugar</span><span>{{ ticket.spaceCode || 'Sin asignar' }}</span></div>
+                    <div class="calc-row plain"><span>Llaves / cascos</span><span>{{ resources(ticket) }}</span></div>
+                    <div class="calc-row plain"><span>Conductor</span><span>{{ ticket.driverName || '—' }}{{ ticket.driverDocument ? ' · CC ' + ticket.driverDocument : '' }}</span></div>
+                    <div class="calc-row plain"><span>Cobro</span><span>{{ value(ticket) }}{{ ticket.paymentMethod ? ' · ' + methodMeta(ticket.paymentMethod).label : '' }}</span></div>
+                  </div>
+                </div>
+                <div class="cli-actions">
+                  <button type="button" class="btn btn-ghost sm" (click)="reprint(ticket)">🖨 Reimprimir ticket</button>
+                  <button type="button" class="btn btn-g sm" *ngIf="ticket.status === 'ACTIVE'" (click)="goToExit(ticket)">↑ Registrar salida</button>
+                </div>
+              </td>
+            </tr>
+          </ng-container>
+          <tr *ngIf="!loading() && !filtered().length"><td colspan="8" class="empty">No hay tickets con esos filtros en el período</td></tr>
+          <tr *ngIf="loading() && !tickets().length"><td colspan="8" class="empty">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
