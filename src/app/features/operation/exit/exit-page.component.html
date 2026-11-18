@@ -40,7 +40,11 @@
             <div class="calc-row"><span>Tarifa</span><span>{{ rateText() }}</span></div>
             <div class="calc-row"><span>Tiempo</span><span>{{ elapsedText() }}</span></div>
             <div class="calc-row" *ngFor="let row of breakdown()"><span>{{ row.label }}</span><span>{{ money(row.amount) }}</span></div>
-            <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(total()) }}</span></div>
+            <ng-container *ngIf="discount() > 0">
+              <div class="calc-row"><span>Subtotal</span><span>{{ money(total()) }}</span></div>
+              <div class="calc-row" style="color:var(--green)"><span>Descuento{{ discountReason.trim() ? ' (' + discountReason.trim() + ')' : '' }}</span><span>−{{ money(discount()) }}</span></div>
+            </ng-container>
+            <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(payable()) }}</span></div>
           </ng-container>
           <ng-template #monthlyCalc>
             <div class="calc-row"><span>Modalidad</span><span>Mensualidad activa</span></div>
@@ -48,11 +52,28 @@
             <div class="calc-row"><span>TOTAL A COBRAR</span><span class="cv">{{ money(0) }}</span></div>
           </ng-template>
         </div>
-        <div class="pay-methods" *ngIf="!ticket.monthlySubscription">
+        <ng-container *ngIf="!ticket.monthlySubscription">
+          <button class="btn btn-ghost sm" type="button" style="margin-top:10px" (click)="toggleDiscount()" [disabled]="paying()">
+            {{ showDiscount() ? '✕ Quitar descuento' : '🏷 Aplicar descuento' }}
+          </button>
+          <div class="form-grid-2" style="margin-top:10px" *ngIf="showDiscount()">
+            <div class="fg">
+              <label class="fl" for="xDiscount">Descuento en pesos</label>
+              <input class="fi" id="xDiscount" name="discount" type="number" min="0" step="100" [max]="total()" placeholder="Ej: 2000"
+                [ngModel]="discount() || null" (ngModelChange)="setDiscount($event)">
+            </div>
+            <div class="fg">
+              <label class="fl" for="xDiscountReason">Motivo <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
+              <input class="fi" id="xDiscountReason" name="discountReason" maxlength="120" placeholder="Cliente frecuente, convenio..." [(ngModel)]="discountReason">
+            </div>
+          </div>
+          <div class="form-hint" *ngIf="showDiscount() && discount() > total()" style="color:var(--red)">El descuento no puede ser mayor que el total ({{ money(total()) }}).</div>
+        </ng-container>
+        <div class="pay-methods" *ngIf="!ticket.monthlySubscription && payable() > 0">
           <div class="pay-method" [class.selected]="paymentMethod() === 'CASH'" (click)="paymentMethod.set('CASH')"><span class="pay-method-icon">💵</span>Efectivo</div>
           <div class="pay-method" [class.selected]="paymentMethod() === 'ONLINE'" (click)="paymentMethod.set('ONLINE')"><span class="pay-method-icon">🌐</span>En línea</div>
         </div>
-        <div class="fg" style="margin-top:10px" *ngIf="!ticket.monthlySubscription && paymentMethod() === 'ONLINE'">
+        <div class="fg" style="margin-top:10px" *ngIf="!ticket.monthlySubscription && payable() > 0 && paymentMethod() === 'ONLINE'">
           <label class="fl" for="xRef">Referencia del pago <span style="text-transform:none;letter-spacing:0">(opcional)</span></label>
           <input class="fi" id="xRef" name="onlineReference" maxlength="80" placeholder="Nequi, Daviplata, transferencia..." [(ngModel)]="onlineReference">
         </div>
@@ -68,7 +89,8 @@
         <div class="t-row"><span class="t-key">Entrada</span><span class="t-val">{{ hhmm(ticket.checkedInAt) }}</span></div>
         <div class="t-row"><span class="t-key">Salida</span><span class="t-val">{{ hhmm(now()) }}</span></div>
         <div class="t-row"><span class="t-key">Tiempo</span><span class="t-val">{{ elapsedText() }}</span></div>
-        <div class="t-row"><span class="t-key">Total</span><span class="t-val total">{{ money(total()) }}</span></div>
+        <div class="t-row" *ngIf="discount() > 0"><span class="t-key">Descuento</span><span class="t-val">−{{ money(discount()) }}</span></div>
+        <div class="t-row"><span class="t-key">Total</span><span class="t-val total">{{ money(payable()) }}</span></div>
         <div class="t-row"><span class="t-key">Pago</span><span class="t-val">{{ ticket.monthlySubscription ? 'Mensualidad' : methodLabel() }}</span></div>
       </div>
     </div>

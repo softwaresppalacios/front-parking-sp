@@ -38,6 +38,9 @@ export type Ticket = {
   code?: string;
   driverName?: string | null;
   driverDocument?: string | null;
+  /** Descuento en pesos aplicado al cobrar la salida (amountDue ya lo tiene restado). */
+  discountAmount?: number | null;
+  discountReason?: string | null;
 };
 
 /** Resultado del envio del ticket por WhatsApp (plantilla de Meta). */
@@ -139,6 +142,8 @@ export type MonthlySubscription = {
   reminderSentAt?: string | null;
   /** Error del ultimo intento de recordatorio; el servidor reintenta solo cada hora. */
   reminderError?: string | null;
+  /** Solo al crear o renovar: confirmacion de pago por WhatsApp (plantilla notificacion_pago_mensualidad). null si no aplico. */
+  paymentWhatsapp?: WhatsappStatus | null;
 };
 
 export type PaymentMethod = 'CASH' | 'ONLINE';

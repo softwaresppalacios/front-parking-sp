@@ -32,6 +32,12 @@ export class ExitPageComponent {
   onlineReference = '';
   found = signal<Ticket | null>(null);
   total = signal(0);
+  /** Descuento de monto exacto en pesos (no porcentaje). El servidor valida que no supere el total. */
+  discount = signal(0);
+  discountReason = '';
+  showDiscount = signal(false);
+  /** Lo que se cobra: total de la tarifa menos el descuento. */
+  payable = computed(() => Math.max(0, this.total() - this.discount()));
   searching = signal(false);
   paying = signal(false);
   now = signal(new Date());
@@ -107,6 +113,7 @@ export class ExitPageComponent {
         this.calculation.set(null);
         this.paymentMethod.set('CASH');
         this.onlineReference = '';
+        this.resetDiscount();
         this.search = displayPlate(ticket.plate);
         if (ticket.monthlySubscription) {
           this.total.set(0);
@@ -130,6 +137,10 @@ export class ExitPageComponent {
   confirm() {
     const ticket = this.found();
     if (!ticket || this.paying()) return;
+    if (!ticket.monthlySubscription && this.discount() > this.total()) {
+      this.toast.err(`El descuento no puede ser mayor que el total (${money(this.total())})`);
+      return;
+    }
     this.paying.set(true);
     this.checkOut(ticket);
   }
@@ -143,6 +154,22 @@ export class ExitPageComponent {
   cancel() {
     this.found.set(null);
     this.search = '';
+    this.resetDiscount();
+  }
+
+  setDiscount(value: number | string | null) {
+    this.discount.set(Math.max(0, Math.round(Number(value) || 0)));
+  }
+
+  toggleDiscount() {
+    if (this.showDiscount()) this.resetDiscount();
+    else this.showDiscount.set(true);
+  }
+
+  private resetDiscount() {
+    this.discount.set(0);
+    this.discountReason = '';
+    this.showDiscount.set(false);
   }
 
   elapsedText() { return durationText(this.minutes()); }
@@ -176,7 +203,13 @@ export class ExitPageComponent {
 
   private checkOut(ticket: Ticket) {
     const method = this.paymentMethod();
-    const body = { paymentMethod: method, onlineReference: method === 'ONLINE' ? this.onlineReference.trim() || null : null };
+    const discount = ticket.monthlySubscription ? 0 : this.discount();
+    const body = {
+      paymentMethod: method,
+      onlineReference: method === 'ONLINE' ? this.onlineReference.trim() || null : null,
+      discountAmount: discount > 0 ? discount : null,
+      discountReason: discount > 0 ? this.discountReason.trim() || null : null
+    };
     this.http.post<Ticket>(`${API.operation}/tickets/${ticket.uuid}/check-out`, body, tenantHeaders(this.tenantId)).subscribe({
       next: closed => {
         const amount = Number(closed.amountDue) || 0;
@@ -184,12 +217,14 @@ export class ExitPageComponent {
           .filter(Boolean).join(' y ');
         const charge = closed.monthlySubscription ? 'Mensualidad, sin cobro'
           : amount > 0 ? `Cobro: ${money(amount)} (${paymentMethodMeta(closed.paymentMethod).label.toLowerCase()})` : 'Sin cobro';
-        this.toast.ok(`Salida de ${displayPlate(closed.plate)} registrada. ${charge}`);
+        const discountText = Number(closed.discountAmount) > 0 ? ` · descuento ${money(closed.discountAmount)}` : '';
+        this.toast.ok(`Salida de ${displayPlate(closed.plate)} registrada. ${charge}${discountText}`);
         if (released) window.setTimeout(() => this.toast.info(`${released} liberados`, '🔓'), 1000);
         this.found.set(null);
         this.search = '';
         this.total.set(0);
         this.onlineReference = '';
+        this.resetDiscount();
         this.paying.set(false);
         this.loadActive();
       },

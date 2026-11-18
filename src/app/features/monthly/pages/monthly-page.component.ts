@@ -161,7 +161,7 @@ export class MonthlyPageComponent {
         this.rememberPrice(subscription.vehicleType, Number(this.form.amount));
         this.context.addSubscription(subscription);
         this.toast.ok(`Mensualidad registrada y pago ingresado a caja (${paymentMethodMeta(subscription.paymentMethod).label.toLowerCase()})`);
-        this.prepareConfirmation(subscription, 'registrada');
+        this.announcePayment(subscription, 'registrada');
         this.finish('ACTIVE');
       },
       error: err => this.fail(err, 'No se pudo registrar la mensualidad')
@@ -245,7 +245,7 @@ export class MonthlyPageComponent {
       next: renewed => {
         this.context.replaceSubscription(renewed);
         this.toast.ok(`Mensualidad de ${displayPlate(renewed.plate)} renovada hasta el ${shortDate(renewed.expiresAt)} · ${money(this.renewForm.amount)} a caja`);
-        this.prepareConfirmation(renewed, 'renovada');
+        this.announcePayment(renewed, 'renovada');
         this.finish('ACTIVE');
       },
       error: err => this.fail(err, 'No se pudo renovar la mensualidad')
@@ -342,6 +342,23 @@ export class MonthlyPageComponent {
   private rememberPrice(type: string, amount: number) {
     this.prices = { ...this.prices, [type]: amount };
     writeStorage(this.pricesKey(), this.prices);
+  }
+
+  /**
+   * El servidor confirma el pago al cliente con la plantilla de WhatsApp. Si salio, no hace falta el boton manual;
+   * si fallo (o el canal esta en pausa), se explica y queda el boton para enviarlo desde el WhatsApp del cajero.
+   */
+  private announcePayment(subscription: MonthlySubscription, action: 'registrada' | 'renovada') {
+    const status = subscription.paymentWhatsapp;
+    if (status?.sent) {
+      this.lastWelcome.set('');
+      window.setTimeout(() => this.toast.info(`Confirmación de pago enviada por WhatsApp a ${subscription.customerName}`, '📲'), 900);
+      return;
+    }
+    if (status && !status.sent) {
+      window.setTimeout(() => this.toast.info(`No se envió la confirmación por WhatsApp: ${status.error || 'error desconocido'}. Puedes enviarla desde tu WhatsApp.`, '⚠️'), 900);
+    }
+    this.prepareConfirmation(subscription, action);
   }
 
   private prepareConfirmation(subscription: MonthlySubscription, action: 'registrada' | 'renovada') {
